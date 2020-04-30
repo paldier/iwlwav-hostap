@@ -183,6 +183,8 @@ void hostapd_config_defaults_bss(struct hostapd_bss_config *bss)
 	bss->sAddPeerAP = NULL;
 
 	bss->num_sAddPeerAP = 0;
+
+	bss->twt_responder_support = 1;
 }
 
 #ifdef CONFIG_ACS
@@ -246,8 +248,8 @@ struct hostapd_config * hostapd_config_defaults(void)
 
 	conf->num_bss = 1;
 
+	conf->ap_retry_limit = AP_TX_RETRY_LIMIT_DEFAULT;  /* default retry limit - 4 */
 	conf->beacon_int = 100;
-	conf->sDisableMasterVap = 0;
 	conf->sStationsStat = 1;
 	conf->rts_threshold = -2; /* use driver default: 2347 */
 	conf->fragm_threshold = -2; /* user driver default: 2346 */
@@ -323,6 +325,7 @@ struct hostapd_config * hostapd_config_defaults(void)
     conf->acs_history_file = strdup("/tmp/acs_history.txt");
     conf->acs_init_done = 0;
     conf->acs_use24overlapped = 0;
+    conf->acs_bg_scan_do_switch = 0;
 
     for (i = 0; i < ACS_MAX_CHANNELS; i++)
       conf->acs_chan_cust_penalty[i] = 50;
@@ -379,10 +382,11 @@ struct hostapd_config * hostapd_config_defaults(void)
 
 	conf->sPowerSelection = 0; /* 100% */
 
-	conf->sCoCPower = os_malloc(sizeof(int) * COC_POWER_SIZE);
+	conf->sCoCPower = os_malloc(sizeof(sCoCPower));
 	if (NULL == conf->sCoCPower)
 		goto fail;
 	memcpy(conf->sCoCPower, sCoCPower, sizeof(sCoCPower));
+	conf->sCoCPowerSize = sizeof(sCoCPower)/sizeof(sCoCPower[0]);
 
 	conf->sRTSmode = os_malloc(sizeof(int) * RT_MODE_SIZE);
 	if (NULL == conf->sRTSmode)
@@ -434,117 +438,11 @@ exit:
 	conf->country[2] = ' ';
 	conf->rssi_reject_assoc_rssi = 0;
 	conf->rssi_reject_assoc_timeout = 30;
+	conf->enable_he_debug_mode = 0;
 
-	conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP0_IDX] |= 
-										HE_MAC_CAP0_HTC_HE_SUPPORT;
-	conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP0_IDX] |=
-										HE_MAC_CAP0_TWT_REQUESTER_SUPPORT;
-	conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP0_IDX] |=
-							set_he_cap(7, HE_MAC_CAP0_MAX_NUM_OF_FRAG_MSDU);
-	conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP1_IDX] |=
-						set_he_cap(7, HE_MAC_CAP1_MULTI_TID_AGGR_RX_SUPPORT);
-	conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP3_IDX] |=
-							set_he_cap(2, HE_MAC_CAP3_MAX_AMPDU_LEN_EXP_EXT);
-	conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP4_IDX] |=
-						set_he_cap(1, HE_MAC_CAP4_MULTI_TID_AGGR_TX_SUPPORT);
-	conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP5_IDX] |=
-						set_he_cap(3, HE_MAC_CAP5_MULTI_TID_AGGR_TX_SUPPORT);
-	conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP3_IDX] |=
-										HE_MAC_CAP3_OM_CONTROL_SUPPORT;
-	conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP2_IDX] |=
-							HE_MAC_CAP2_ACK_ENABLED_AGGREGATION_SUPPORT;
-	conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP4_IDX] |=
-									HE_MAC_CAP4_AMSDU_IN_AMPDU_SUPPORT;
-	conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP5_IDX] |=
-									HE_MAC_CAP5_OM_CONTROL_UL_MU_DATA_DIS_RX_SUP;
-	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP1_IDX] |=
-												HE_PHY_CAP1_DEVICE_CLASS;
-	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP0_IDX] |=
-											HE_PHY_CAP0_CHANNEL_WIDTH_SET_B0;
-	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP0_IDX] |=
-											HE_PHY_CAP0_CHANNEL_WIDTH_SET_B1;
-	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP0_IDX] |=
-											HE_PHY_CAP0_CHANNEL_WIDTH_SET_B2;
-	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP2_IDX] |=
-								HE_PHY_CAP2_STBC_TX_LESS_OR_EQUAL_80MHz;
-	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP1_IDX] |=
-									HE_PHY_CAP1_LDPC_CODING_IN_PAYLOAD;
-	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP3_IDX] |=
-												HE_PHY_CAP3_SU_BEAMFORMER;
-	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP4_IDX] |=
-												HE_PHY_CAP4_SU_BEAMFORMEE;
-	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP4_IDX] |=
-												HE_PHY_CAP4_MU_BEAMFORMER;
-	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP4_IDX] |=
-						set_he_cap(3, HE_PHY_CAP4_BF_STS_LESS_OR_EQ_80MHz);
-	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP4_IDX] |=
-						set_he_cap(3, HE_PHY_CAP4_BF_STS_GREATER_THAN_80MHz);
-	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP5_IDX] |=
-						set_he_cap(3, HE_PHY_CAP5_NUM_SOUND_DIM_LESS_80MHz);
-	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP5_IDX] |=
-						set_he_cap(3, HE_PHY_CAP5_NUM_SOUND_DIM_GREAT_80MHz);
-	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP7_IDX] |=
-									set_he_cap(3, HE_PHY_CAP7_MAX_NC);
-	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP6_IDX] |=
-							HE_PHY_CAP6_TRIGGERED_SU_BEAMFORMING_FEEDBACK;
-	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP6_IDX] |=
-									HE_PHY_CAP6_TRIGGERED_CQI_FEEDBACK;
-	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP6_IDX] |=
-										HE_PHY_CAP6_PPE_THRESHOLD_PRESENT;
-	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP7_IDX] |=
-					HE_PHY_CAP7_SU_PPDU_AND_HE_MU_WITH_4X_HE_LTF_0_8US_GI;
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP0_IDX] |=
-										set_he_cap(3, HE_PPE_CAP0_NSS_M1);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP0_IDX] |=
-							set_he_cap(15, HE_PPE_CAP0_RU_INDEX_BITMASK);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP1_IDX] |=
-						set_he_cap(7, HE_PPE_CAP1_PPET8_FOR_NSS1_FOR_RU0);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP2_IDX] |=
-						set_he_cap(7, HE_PPE_CAP2_PPET8_FOR_NSS1_FOR_RU1);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP2_IDX] |=
-						set_he_cap(3,HE_PPE_CAP2_PPET8_FOR_NSS1_FOR_RU2 );
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP3_IDX] |=
-						set_he_cap(1, HE_PPE_CAP3_PPET8_FOR_NSS1_FOR_RU2);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP3_IDX] |=
-						set_he_cap(7, HE_PPE_CAP3_PPET8_FOR_NSS1_FOR_RU3);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP4_IDX] |=
-						set_he_cap(7, HE_PPE_CAP4_PPET8_FOR_NSS2_FOR_RU0);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP5_IDX] |=
-						set_he_cap(7, HE_PPE_CAP5_PPET8_FOR_NSS2_FOR_RU1);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP5_IDX] |=
-						set_he_cap(3, HE_PPE_CAP5_PPET8_FOR_NSS2_FOR_RU2);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP6_IDX] |=
-						set_he_cap(1, HE_PPE_CAP6_PPET8_FOR_NSS2_FOR_RU2);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP6_IDX] |=
-						set_he_cap(7, HE_PPE_CAP6_PPET8_FOR_NSS2_FOR_RU3);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP7_IDX] |=
-						set_he_cap(7, HE_PPE_CAP7_PPET8_FOR_NSS3_FOR_RU0);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP8_IDX] |=
-						set_he_cap(7, HE_PPE_CAP8_PPET8_FOR_NSS3_FOR_RU1);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP8_IDX] |=
-						set_he_cap(3, HE_PPE_CAP8_PPET8_FOR_NSS3_FOR_RU2);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP9_IDX] |=
-						set_he_cap(1, HE_PPE_CAP9_PPET8_FOR_NSS3_FOR_RU2);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP9_IDX] |=
-						set_he_cap(7, HE_PPE_CAP9_PPET8_FOR_NSS3_FOR_RU3);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP10_IDX] |=
-						set_he_cap(7, HE_PPE_CAP10_PPET8_FOR_NSS4_FOR_RU0);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP11_IDX] |=
-						set_he_cap(7, HE_PPE_CAP11_PPET8_FOR_NSS4_FOR_RU1);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP11_IDX] |=
-						set_he_cap(3, HE_PPE_CAP11_PPET8_FOR_NSS4_FOR_RU2);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP12_IDX] |=
-						set_he_cap(1, HE_PPE_CAP12_PPET8_FOR_NSS4_FOR_RU2);
-	conf->he_capab.he_ppe_thresholds[HE_PPE_CAP12_IDX] |=
-						set_he_cap(7, HE_PPE_CAP12_PPET8_FOR_NSS4_FOR_RU3);
-	conf->he_capab.he_txrx_mcs_support[0] = 0xaa;
-	conf->he_capab.he_txrx_mcs_support[1] = 0xff;
-	conf->he_capab.he_txrx_mcs_support[2] = 0xaa;
-	conf->he_capab.he_txrx_mcs_support[3] = 0xff;
-	conf->he_capab.he_txrx_mcs_support[4] = 0xaa;
-	conf->he_capab.he_txrx_mcs_support[5] = 0xff;
-	conf->he_capab.he_txrx_mcs_support[6] = 0xaa;
-	conf->he_capab.he_txrx_mcs_support[7] = 0xff;
+	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP0_IDX] |= HE_PHY_CAP0_CHANNEL_WIDTH_SET_B0;
+	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP0_IDX] |= HE_PHY_CAP0_CHANNEL_WIDTH_SET_B1;
+	conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP0_IDX] |= HE_PHY_CAP0_CHANNEL_WIDTH_SET_B2;
 	conf->he_oper.he_oper_params[HE_OPERATION_CAP0_IDX] |=
 					set_he_cap(4, HE_OPERATION_CAP0_DEFAULT_PE_DURATION);
 	conf->he_oper.he_oper_params[HE_OPERATION_CAP0_IDX] |=
@@ -611,14 +509,13 @@ exit:
 	conf->he_spatial_reuse_ie_present_in_assoc_response = 1;
 
 	conf->he_spatial_reuse.he_sr_control |=
-						set_he_cap(0, HE_SRP_NON_SRG_OFFSET_PRESENT);
+				set_he_cap(0, HE_SRP_NON_SRG_OFFSET_PRESENT);
 	conf->he_mu_edca_ie_present = 1;
 
 	conf->he_spatial_reuse.he_sr_control |=
-								set_he_cap(0, HE_SRP_SRG_INFO_PRESENT);
+				set_he_cap(0, HE_SRP_SRG_INFO_PRESENT);
 	conf->he_spatial_reuse.he_non_srg_obss_pd_max_offset = 0xaa;
 
-	bss->twt_responder_support = 1;
 	conf->he_nfr_buffer_threshold = 0xe;
 
 	conf->mbssid_aid_offset = NON_MULTIBSS_AID_OFFSET;
@@ -1177,6 +1074,9 @@ void hostapd_config_free(struct hostapd_config *conf)
 	os_free(conf->atf_config_file);
 
 	os_free(conf->sCoCPower);
+	conf->sCoCPowerSize = 0;
+	os_free(conf->sCoCAutoCfg);
+	os_free(conf->sErpSet);
 	os_free(conf->sRTSmode);
 	os_free(conf->sFixedRateCfg);
 	os_free(conf->sInterferDetThresh);

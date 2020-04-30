@@ -3654,13 +3654,9 @@ static u16 send_assoc_resp(struct hostapd_data *hapd, struct sta_info *sta,
 #endif /* CONFIG_IEEE80211AC */
 
 #ifdef CONFIG_IEEE80211AX
-	if (hapd->iconf->ieee80211ax) {
-		if (!hapd->iconf->ieee80211n_acax_compat || (sta && sta->flags & WLAN_STA_HE)) {
-			if(hapd->iconf->minimized_he_assoc_response) {
-				p = hostapd_eid_he_assoc_response(hapd, sta, p);
-			} else {
-				p = hostapd_eid_he_capab(hapd, p);
-			}
+	if (hapd->iconf->ieee80211ax && !hapd->conf->disable_11ax) {
+		if (!hapd->iconf->ieee80211n_acax_compat || (sta && (sta->flags & WLAN_STA_HE))) {
+			p = hostapd_eid_he_capab(hapd, p);
 			p = hostapd_eid_he_operation(hapd, p);
 
 			if(hapd->iconf->he_mu_edca_ie_present)
@@ -3669,7 +3665,7 @@ static u16 send_assoc_resp(struct hostapd_data *hapd, struct sta_info *sta,
 			if(hapd->iconf->he_spatial_reuse_ie_present_in_assoc_response)
 				p = hostapd_eid_he_spatial_reuse_parameter_set(hapd, p);
 			if(get_he_cap(hapd->iconf->he_capab.he_mac_capab_info[HE_MACCAP_CAP4_IDX],
-	 	 	 	 	 	 	 	 	 	 	 	 	 	 	 	 	 	 	 HE_MAC_CAP4_NDP_FEEDBACK_REPORT_SUPPORT))
+				      HE_MAC_CAP4_NDP_FEEDBACK_REPORT_SUPPORT))
 				p = hostapd_eid_he_ndp_feedback_report_parameters_set(hapd, p);
 		}
 	}

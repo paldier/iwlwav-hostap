@@ -348,7 +348,7 @@ static int ieee802_11_send_bss_trans_mgmt_request(struct hostapd_data *hapd,
 	u8 *pos;
 	int res;
 
-	mgmt = os_zalloc(sizeof(*mgmt));
+	mgmt = os_zalloc(sizeof(*mgmt) + nei_rep_len + mbo_len);
 	if (mgmt == NULL)
 		return -1;
 	os_memcpy(mgmt->da, addr, ETH_ALEN);

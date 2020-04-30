@@ -2368,8 +2368,8 @@ void add_channel_pair_candidates(struct hostapd_iface *iface, channel_pair *chan
 
       /* Special rule to allow only 2 non-overlapping 40 MHz candidates (1--5, 7--11) in 2.4 GHz,
        * if special acs_use24overlapped configuration parameter is set to 0 (default) */
-      if (!iface->conf->acs_use24overlapped &&
-          acs_is_40_mhz_overlap_chan(&channel_pairs[i]))
+      if ((base_freq < 5000) && (!iface->conf->acs_use24overlapped) &&
+          (acs_is_40_mhz_overlap_chan(&channel_pairs[i])))
         continue;
 
       if (channel_pairs[i].primary < channel_pairs[i].secondary)
@@ -2466,6 +2466,7 @@ void add_160_channels(struct hostapd_iface *iface, channel_160 *channel_pairs, u
     }
   }
 }
+
 static void acs_init_candidate_table(struct hostapd_iface *iface)
 {
   int i;
@@ -2485,15 +2486,19 @@ static void acs_init_candidate_table(struct hostapd_iface *iface)
     if (!is_in_chanlist(iface, chan))
      continue;
 
-    if (chan->flag & HOSTAPD_CHAN_RADAR) candidates[iface->num_candidates].radar_affected = TRUE;
+    if (iface->conf->acs_use24overlapped ||
+        (chan->chan == 1) || (chan->chan == 6) || (chan->chan == 11) ||
+        (chan->freq >= 5000))
+    {
+      if (chan->flag & HOSTAPD_CHAN_RADAR) candidates[iface->num_candidates].radar_affected = TRUE;
 
-    candidates[iface->num_candidates].freq = chan->freq;
-    candidates[iface->num_candidates].chan = chan->chan;
-    candidates[iface->num_candidates].primary = chan->chan;
-    candidates[iface->num_candidates].secondary = 0;
-    candidates[iface->num_candidates].width = 20;
+      candidates[iface->num_candidates].freq = chan->freq;
+      candidates[iface->num_candidates].chan = chan->chan;
+      candidates[iface->num_candidates].primary = chan->chan;
+      candidates[iface->num_candidates].secondary = 0;
+      candidates[iface->num_candidates].width = 20;
 
-    wpa_printf(MSG_DEBUG, "ACS: adding candidate %d, freq %d chan %d pri %d sec %d width %d",
+      wpa_printf(MSG_DEBUG, "ACS: adding candidate %d, freq %d chan %d pri %d sec %d width %d",
                         iface->num_candidates,
                         candidates[iface->num_candidates].freq,
                         candidates[iface->num_candidates].chan,
@@ -2501,7 +2506,8 @@ static void acs_init_candidate_table(struct hostapd_iface *iface)
                         candidates[iface->num_candidates].secondary,
                         candidates[iface->num_candidates].width);
 
-    iface->num_candidates++;
+      iface->num_candidates++;
+    }
 
     if (!iface->conf->secondary_channel) { /* 40 MHz not supported */
       continue;
@@ -2748,6 +2754,12 @@ int acs_do_switch_channel(struct hostapd_iface *iface, int block_tx)
     return -1;
   }
 
+  err = hostapd_prepare_and_send_csa_deauth_cfg_to_driver(iface->bss[0]);
+  if (err) {
+    wpa_printf(MSG_ERROR, "hostapd_prepare_and_send_csa_deauth_cfg_to_driver failed: %s",
+                            iface->bss[0]->conf->iface);
+    return err;
+  }
   for (i = 0; i < iface->num_bss; i++) {
     err = hostapd_switch_channel(iface->bss[i], &csa_settings);
     if (err) {
@@ -3215,6 +3227,9 @@ int acs_recalc_ranks_and_set_chan (struct hostapd_iface *iface, int switch_reaso
       cg[cg_idx].cand_idx = i;
     }
   }
+
+  if (!iface->conf->acs_bg_scan_do_switch && (SWR_BG_SCAN == switch_reason))
+    goto end;
 
   /* comparison between BWs */
   if ((iface->conf->acs_bw_comparison) && (iface->conf->acs_policy == ACS_POLICY_THROUGHPUT))

@@ -5211,3 +5211,145 @@ int wpa_auth_rekey_gtk(struct wpa_authenticator *wpa_auth)
 }
 
 #endif /* CONFIG_TESTING_OPTIONS */
+
+#ifdef CONFIG_IEEE80211W
+/* Group keys set to GTK by default and used as per generic 11W feature design.
+ * So the same is being used to generate MMIE IE here.
+ */
+u8 * bip_protect(struct wpa_authenticator *wpa_auth,
+		u8 *frame, size_t len, size_t *prot_len)
+{
+	const u8 *igtk = wpa_auth->group->IGTK[wpa_auth->group->GN_igtk - 4];
+	size_t igtk_len = wpa_cipher_key_len(wpa_auth->conf.group_mgmt_cipher);
+	size_t copied_bytes = 0;
+	u8 ipn[WPA_KEY_RSC_LEN] = {0};
+	int keyid = wpa_auth->group->GN;
+	u8 *prot, *pos, *buf;
+	u8 mic[WLAN_MMIE_SUBELEM_MIC2_SIZE];
+	u16 fc;
+	struct ieee80211_hdr *hdr;
+	size_t plen;
+
+	hdr = (struct ieee80211_hdr *) frame;
+	plen = len + (igtk_len == WPA_IGTK_MAX_LEN ? WLAN_MMIE_LENGTH2 : WLAN_MMIE_LENGTH1);
+	prot = os_malloc(plen);
+	if (prot == NULL)
+		return NULL;
+	buf = os_malloc(plen - (sizeof(hdr->duration_id) + sizeof(hdr->seq_ctrl))); /* skip duration_id and seq_ctrl from frame header */
+	if (buf == NULL) {
+		os_free(prot);
+		return NULL;
+	}
+
+	os_memcpy(prot, frame, len);
+	pos = prot + len;
+	*pos++ = WLAN_EID_MMIE;
+	*pos++ = (igtk_len == WPA_IGTK_MAX_LEN ? WLAN_MMIE_SUBELEM_LENGTH2_VALUE : WLAN_MMIE_SUBELEM_LENGTH1_VALUE);
+	WPA_PUT_LE16(pos, keyid);
+	pos += WLAN_MMIE_SUBELEM_KEYID_SIZE;
+	if (wpa_auth_get_seqnum(wpa_auth, NULL, wpa_auth->group->GN_igtk, ipn) < 0) {
+		wpa_printf(MSG_ERROR, "Failed to get seqnum for ipn, using '0's");
+		wpa_auth_logger(wpa_auth, NULL, LOGGER_INFO, "get seqnum for ipn failed, using '0's");
+	}
+	os_memcpy(pos, ipn, WLAN_MMIE_SUBELEM_IPN_SIZE);
+	pos += WLAN_MMIE_SUBELEM_IPN_SIZE;
+	os_memset(pos, 0, igtk_len == WPA_IGTK_MAX_LEN ? WLAN_MMIE_SUBELEM_MIC2_SIZE : WLAN_MMIE_SUBELEM_MIC1_SIZE); /* MIC */
+
+	/* BIP AAD: FC(masked) A1 A2 A3 */
+	fc = le_to_host16(hdr->frame_control);
+	fc &= ~(WLAN_FC_RETRY | WLAN_FC_PWRMGT | WLAN_FC_MOREDATA);
+	WPA_PUT_LE16(buf, fc);
+	copied_bytes = sizeof(hdr->frame_control);
+	os_memcpy(buf + copied_bytes, hdr->addr1, 3 * sizeof(hdr->addr1));
+	copied_bytes += (3 * sizeof(hdr->addr1));
+	os_memcpy(buf + copied_bytes, prot + IEEE80211_HDRLEN, plen - IEEE80211_HDRLEN);
+	wpa_hexdump(MSG_MSGDUMP, "BIP: AAD|Body(masked)", buf, plen + copied_bytes - IEEE80211_HDRLEN);
+	/* MIC = L(AES-128-CMAC(AAD || Frame Body(masked)), 0, 64) */
+	if (omac1_aes_128(igtk, buf, plen + copied_bytes - IEEE80211_HDRLEN, mic) < 0) {
+		os_free(prot);
+		os_free(buf);
+		return NULL;
+	}
+	os_free(buf);
+
+	os_memcpy(pos, mic, igtk_len == WPA_IGTK_MAX_LEN ? WLAN_MMIE_SUBELEM_MIC2_SIZE : WLAN_MMIE_SUBELEM_MIC1_SIZE);
+	wpa_hexdump(MSG_DEBUG, "BIP MMIE MIC", pos, igtk_len == WPA_IGTK_MAX_LEN ? WLAN_MMIE_SUBELEM_MIC2_SIZE : WLAN_MMIE_SUBELEM_MIC1_SIZE);
+
+	*prot_len = plen;
+	return prot;
+}
+
+#ifdef AES_GMAC_AVAILABLE
+u8 * bip_gmac_protect(struct wpa_authenticator *wpa_auth,
+		u8 *frame, size_t len, size_t *prot_len)
+{
+	const u8 *igtk = wpa_auth->group->IGTK[wpa_auth->group->GN_igtk - 4];
+	size_t igtk_len = wpa_cipher_key_len(wpa_auth->conf.group_mgmt_cipher);
+	size_t copied_bytes = 0;
+	u8 *ipn = wpa_auth->group->ipn;
+	int keyid = wpa_auth->group->GN;
+	u8 *prot, *pos, *buf;
+	u16 fc;
+	struct ieee80211_hdr *hdr;
+	size_t plen;
+	u8 nonce[12], *npos;
+
+	hdr = (struct ieee80211_hdr *) frame;
+	plen = len + WLAN_MMIE_LENGTH2;
+	prot = os_malloc(plen);
+	if (prot == NULL)
+		return NULL;
+	buf = os_malloc(plen - (sizeof(hdr->duration_id) + sizeof(hdr->seq_ctrl))); /* skip duration_id and seq_ctrl from frame header */
+	if (buf == NULL) {
+		os_free(prot);
+		return NULL;
+	}
+
+	os_memcpy(prot, frame, len);
+	pos = prot + len;
+	*pos++ = WLAN_EID_MMIE;
+	*pos++ = WLAN_MMIE_SUBELEM_LENGTH2_VALUE;
+	WPA_PUT_LE16(pos, keyid);
+	pos += WLAN_MMIE_SUBELEM_KEYID_SIZE;
+	os_memcpy(pos, ipn, WLAN_MMIE_SUBELEM_IPN_SIZE);
+	pos += WLAN_MMIE_SUBELEM_IPN_SIZE;
+	os_memset(pos, 0, WLAN_MMIE_SUBELEM_MIC2_SIZE); /* MIC */
+
+	/* BIP AAD: FC(masked) A1 A2 A3 */
+	fc = le_to_host16(hdr->frame_control);
+	fc &= ~(WLAN_FC_RETRY | WLAN_FC_PWRMGT | WLAN_FC_MOREDATA);
+	WPA_PUT_LE16(buf, fc);
+	copied_bytes = sizeof(hdr->frame_control);
+	os_memcpy(buf + copied_bytes, hdr->addr1, 3 * sizeof(hdr->addr1));
+	copied_bytes += (3 * sizeof(hdr->addr1));
+	os_memcpy(buf + copied_bytes, prot + IEEE80211_HDRLEN, plen - IEEE80211_HDRLEN);
+	wpa_hexdump(MSG_MSGDUMP, "BIP-GMAC: AAD|Body(masked)",
+		    buf, plen + copied_bytes - IEEE80211_HDRLEN);
+
+	/* Nonce: A2 | IPN */
+	os_memcpy(nonce, hdr->addr2, ETH_ALEN);
+	npos = nonce + ETH_ALEN;
+	*npos++ = ipn[5];
+	*npos++ = ipn[4];
+	*npos++ = ipn[3];
+	*npos++ = ipn[2];
+	*npos++ = ipn[1];
+	*npos++ = ipn[0];
+	wpa_hexdump(MSG_EXCESSIVE, "BIP-GMAC: Nonce", nonce, sizeof(nonce));
+
+	/* MIC = AES-GMAC(AAD || Frame Body(masked)) */
+	if (aes_gmac(igtk, igtk_len, nonce, sizeof(nonce),
+		     buf, plen + copied_bytes - IEEE80211_HDRLEN, pos) < 0) {
+		os_free(prot);
+		os_free(buf);
+		return NULL;
+	}
+	os_free(buf);
+
+	wpa_hexdump(MSG_DEBUG, "BIP-GMAC MMIE MIC", pos, WLAN_MMIE_SUBELEM_MIC2_SIZE);
+
+	*prot_len = plen;
+	return prot;
+}
+#endif /* AES_GMAC_AVAILABLE */
+#endif /* CONFIG_IEEE80211W */

@@ -137,6 +137,19 @@ struct ft_rrb_seq {
 #pragma pack(pop)
 #endif /* _MSC_VER */
 
+/* Management MIC IE and it's sub-elements' sizes (IEEE Std 802.11w-2009, 7.3.2.55) */
+#ifdef CONFIG_IEEE80211W
+#define WLAN_MMIE_LENGTH1                18
+#define WLAN_MMIE_LENGTH2                26
+#define WLAN_MMIE_SUBELEM_ID_SIZE        1
+#define WLAN_MMIE_SUBELEM_LENGTH_SIZE    1
+#define WLAN_MMIE_SUBELEM_KEYID_SIZE     2
+#define WLAN_MMIE_SUBELEM_IPN_SIZE       6
+#define WLAN_MMIE_SUBELEM_MIC1_SIZE      8
+#define WLAN_MMIE_SUBELEM_MIC2_SIZE      16
+#define WLAN_MMIE_SUBELEM_LENGTH1_VALUE  16
+#define WLAN_MMIE_SUBELEM_LENGTH2_VALUE  24
+#endif
 
 /* per STA state machine data */
 

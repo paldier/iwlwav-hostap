@@ -23,6 +23,7 @@
 #include "common/ieee802_11_defs.h"
 #include "common/wpa_common.h"
 #include "common/intel_vendor_shared.h"
+#include "common/ltq-vendor.h"
 #ifdef CONFIG_MACSEC
 #include "pae/ieee802_1x_kay.h"
 #endif /* CONFIG_MACSEC */
@@ -4596,12 +4597,22 @@ struct wpa_driver_ops {
 	int(*set_he_operation_info)(void *priv, struct ieee80211_he_operation *he_operation);
 
 	/**
-	* get_he_non_advertised_info - Get non-advertised HE Capabilities element
-	* @priv: Private driver interface data
-	* @non_advertised_he_caps - HE Capabilities element struct
-	* Returns: 0 on success, -1 on failure
-	*/
-	int(*get_he_non_advertised_info)(void *priv, struct ieee80211_he_capabilities *non_advertised_he_caps);
+	 * set_he_non_advertised_info - Set non-advertised HE Capabilities element
+	 * @priv: Private driver interface data
+	 * @index: Non advertised HE capabilities index
+	 * @value: Non advertised HE capabilities value
+	 * @offset: Non advertised HE capabilities offset
+	 */
+	int (*set_he_non_advertised_info)(void *priv, u8 index,
+					  u8 value, u8 offset);
+
+	/**
+	 * send_ltq_he_debug_mode_data - Send ltq he debug mode data
+	 * @priv: Private driver interface data
+	 * @data: debug data
+	 * Returns: 0 on success, -1 on failure
+	 */
+	int (*send_ltq_he_debug_mode_data)(void *priv, struct ltq_he_debug_mode_data *data);
 
 	/**
 	* set_zwdfs_antenna - Enable/Disable ZWDFS antenna if supported.

@@ -385,7 +385,7 @@ static inline int hostapd_drv_vendor_cmd(struct hostapd_data *hapd,
 					 const u8 *data, size_t data_len,
 					 struct wpabuf *buf)
 {
-	if (hapd->driver == NULL || hapd->driver->vendor_cmd == NULL)
+	if (hapd->driver == NULL || hapd->driver->vendor_cmd == NULL || hapd->drv_priv == NULL)
 		return -1;
 	return hapd->driver->vendor_cmd(hapd->drv_priv, vendor_id, subcmd, data,
 					data_len, buf);
@@ -515,13 +515,25 @@ static inline int hostapd_drv_set_he_operation(struct hostapd_data *hapd,
   return hapd->driver->set_he_operation_info(hapd->drv_priv, he_operation);
 }
 
-static inline int hostapd_drv_get_he_non_advertised(struct hostapd_data *hapd,
-                struct ieee80211_he_capabilities *non_advertised_he_caps)
+static inline int
+hostapd_drv_set_he_non_advertised(struct hostapd_data *hapd, u8 index,
+				  u8 value, u8 offset)
 {
-  if (hapd->driver == NULL || hapd->driver->get_he_non_advertised_info == NULL)
-    return -ENOTSUP;
+	if (!hapd->driver || !hapd->driver->set_he_non_advertised_info)
+		return -ENOTSUP;
 
-  return hapd->driver->get_he_non_advertised_info(hapd->drv_priv, non_advertised_he_caps);
+	return hapd->driver->set_he_non_advertised_info(hapd->drv_priv, index,
+							value, offset);
+}
+
+static inline int
+hostapd_drv_send_ltq_he_debug_mode_data(struct hostapd_data *hapd,
+					struct ltq_he_debug_mode_data *data)
+{
+	if (!hapd->driver || !hapd->driver->send_ltq_he_debug_mode_data)
+		return -ENOTSUP;
+
+	return hapd->driver->send_ltq_he_debug_mode_data(hapd->drv_priv, data);
 }
 
 static inline int hostapd_drv_unconnected_sta(struct hostapd_data *hapd,

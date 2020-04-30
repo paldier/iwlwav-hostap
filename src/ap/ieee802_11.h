@@ -62,7 +62,6 @@ u8 * hostapd_eid_secondary_channel(struct hostapd_data *hapd, u8 *eid);
 u8 * hostapd_eid_vht_capabilities(struct hostapd_data *hapd, u8 *eid, u32 nsts);
 u8 * hostapd_eid_vht_operation(struct hostapd_data *hapd, u8 *eid);
 u8 * hostapd_eid_he_capab(struct hostapd_data *hapd, u8 *eid);
-u8 * hostapd_eid_he_assoc_response(struct hostapd_data *hapd, struct sta_info *sta, u8 *eid);
 u8 * hostapd_eid_he_operation(struct hostapd_data *hapd, u8 *eid);
 u8 * hostapd_eid_he_mu_edca_parameter_set(struct hostapd_data *hapd, u8 *eid);
 u8 * hostapd_eid_he_spatial_reuse_parameter_set(struct hostapd_data *hapd, u8 *eid);

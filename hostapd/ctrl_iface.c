@@ -164,22 +164,12 @@ static int hostapd_ctrl_iface_sa_query(struct hostapd_data *hapd,
 #ifdef CONFIG_WPS
 static int hostapd_ctrl_iface_wps_pin(struct hostapd_data *hapd, char *txt)
 {
-	char *pin, *uuid, *timeout_txt;
+	char *pin = os_strchr(txt, ' ');
+	char *timeout_txt;
 	int timeout;
 	u8 addr_buf[ETH_ALEN], *addr = NULL;
 	char *pos;
 
-	hapd = get_bss_index(txt, hapd->iface);
-	if (hapd == NULL) {
-		return -1;
-	}
-
-	uuid = os_strchr(txt, ' ');
-	if (uuid == NULL)
-		return -1;
-	uuid++;
-
-	pin = os_strchr(uuid, ' ');
 	if (pin == NULL)
 		return -1;
 	*pin++ = '\0';
@@ -197,7 +187,7 @@ static int hostapd_ctrl_iface_wps_pin(struct hostapd_data *hapd, char *txt)
 	} else
 		timeout = 0;
 
-	return hostapd_wps_add_pin(hapd, addr, uuid, pin, timeout);
+	return hostapd_wps_add_pin(hapd, addr, txt, pin, timeout);
 }
 
 
@@ -473,17 +463,6 @@ static int hostapd_ctrl_iface_wps_ap_pin(struct hostapd_data *hapd, char *txt,
 	char *pos;
 	const char *pin_txt;
 
-	hapd = get_bss_index(txt, hapd->iface);
-	if (NULL == hapd) {
-		return -1;
-	}
-
-	txt = os_strchr(txt, ' ');
-	if (NULL == txt) {
-		return -1;
-	}
-	txt++;
-
 	pos = os_strchr(txt, ' ');
 	if (pos)
 		*pos++ = '\0';
@@ -499,14 +478,14 @@ static int hostapd_ctrl_iface_wps_ap_pin(struct hostapd_data *hapd, char *txt,
 		pin_txt = hostapd_wps_ap_pin_random(hapd, timeout);
 		if (pin_txt == NULL)
 			return -1;
-		return os_snprintf(buf, buflen, "%s\n", pin_txt);
+		return os_snprintf(buf, buflen, "%s", pin_txt);
 	}
 
 	if (os_strcmp(txt, "get") == 0) {
 		pin_txt = hostapd_wps_ap_pin_get(hapd);
 		if (pin_txt == NULL)
 			return -1;
-		return os_snprintf(buf, buflen, "%s\n", pin_txt);
+		return os_snprintf(buf, buflen, "%s", pin_txt);
 	}
 
 	if (os_strcmp(txt, "set") == 0) {
@@ -523,7 +502,7 @@ static int hostapd_ctrl_iface_wps_ap_pin(struct hostapd_data *hapd, char *txt,
 			return -1;
 		if (hostapd_wps_ap_pin_set(hapd, pin, timeout) < 0)
 			return -1;
-		return os_snprintf(buf, buflen, "%s\n", pin);
+		return os_snprintf(buf, buflen, "%s", pin);
 	}
 
 	return -1;
@@ -534,16 +513,6 @@ static int hostapd_ctrl_iface_wps_config(struct hostapd_data *hapd, char *txt)
 {
 	char *pos;
 	char *ssid, *auth, *encr = NULL, *key = NULL;
-
-	hapd = get_bss_index(txt, hapd->iface);
-	if (hapd == NULL) {
-		return -1;
-	}
-	txt = os_strchr(txt, ' ');
-	if (NULL == txt) {
-		return -1;
-	}
-	txt++;
 
 	ssid = txt;
 	pos = os_strchr(txt, ' ');
@@ -583,36 +552,15 @@ static const char * pbc_status_str(enum pbc_status status)
 	}
 }
 
-struct hostapd_data *get_wps_bss(struct hostapd_iface *iface)
-{
-	int i;
-
-	for (i = 0; i < iface->num_bss; i++) {
-		struct hostapd_data *bss = iface->bss[i];
-
-		if (bss->wps)
-			return bss;
-	}
-	return NULL;
-}
-
 
 static int hostapd_ctrl_iface_wps_get_status(struct hostapd_data *hapd,
 					     char *buf, size_t buflen)
 {
 	int ret;
 	char *pos, *end;
-	Boolean found = TRUE;
-	struct hostapd_data *original_hapd = hapd;
 
 	pos = buf;
 	end = buf + buflen;
-
-	hapd = get_wps_bss(hapd->iface);
-	if (hapd == NULL) {
-		found = FALSE;
-		hapd = original_hapd;
-	}
 
 	ret = os_snprintf(pos, end - pos, "PBC Status: %s\n",
 			  pbc_status_str(hapd->wps_stats.pbc_status));
@@ -651,12 +599,6 @@ static int hostapd_ctrl_iface_wps_get_status(struct hostapd_data *hapd,
 			return pos - buf;
 		pos += ret;
 	}
-
-	ret = os_snprintf(pos, end - pos, "Interface: %s\n",
-		found ? hapd->conf->iface : "");
-	if (os_snprintf_error(end - pos, ret))
-		return pos - buf;
-	pos += ret;
 
 	return pos - buf;
 }
@@ -1363,18 +1305,13 @@ static int hostapd_ctrl_iface_get_key_mgmt(struct hostapd_data *hapd,
 
 
 static int hostapd_ctrl_iface_get_config(struct hostapd_data *hapd,
-					 const char *bss_name, char *buf, size_t buflen)
+					 char *buf, size_t buflen)
 {
 	int ret;
 	char *pos, *end;
 
 	pos = buf;
 	end = buf + buflen;
-
-	hapd = get_bss_index(bss_name, hapd->iface);
-	if (hapd == NULL) {
-		return -1;
-	}
 
 	ret = os_snprintf(pos, end - pos, "bssid=" MACSTR "\n"
 			  "ssid=%s\n",
@@ -2990,6 +2927,12 @@ static int hostapd_ctrl_iface_chan_switch(struct hostapd_iface *iface,
     return 0;
   }
 
+	ret = hostapd_prepare_and_send_csa_deauth_cfg_to_driver(iface->bss[0]);
+	if (ret) {
+		wpa_printf(MSG_ERROR, "hostapd_prepare_and_send_csa_deauth_cfg_to_driver failed: %s",
+					iface->bss[0]->conf->iface);
+		return ret;
+	}
 	for (i = 0; i < iface->num_bss; i++) {
 
 		/* Save CHAN_SWITCH VHT config */
@@ -3008,6 +2951,52 @@ static int hostapd_ctrl_iface_chan_switch(struct hostapd_iface *iface,
 #else /* NEED_AP_MLME */
 	return -1;
 #endif /* NEED_AP_MLME */
+}
+
+
+static int hostapd_ctrl_iface_set_csa_deauth(struct hostapd_data *hapd,
+					  char *pos)
+{
+	int ret;
+	char *str, *pos2;
+
+	hapd = get_bss_index(pos, hapd->iface);
+	if (!hapd) {
+		wpa_printf(MSG_INFO,
+				"CTRL: SET_CSA_DEAUTH - there is no iface with the given name");
+		return -1;
+	}
+
+	str = os_strstr(pos, "mode=");
+	if (str) {
+		str += sizeof("mode=") - 1;
+
+		hapd->csa_deauth_mode = strtol(str, &pos2, 10);
+		if (str == pos2 || hapd->csa_deauth_mode < CSA_DEAUTH_MODE_DISABLED || hapd->csa_deauth_mode > CSA_DEAUTH_MODE_BROADCAST) {
+			wpa_printf(MSG_ERROR, "csa deauth: invalid mode value provided");
+			return -1;
+		}
+	}
+	str = os_strstr(pos, "tx_time=");
+	if (str) {
+		ret = sscanf(str, "tx_time=%hu,%hu", &hapd->csa_deauth_tx_time[INTEL_CSA_DEAUTH_TX_TIME_UC_IDX],
+				&hapd->csa_deauth_tx_time[INTEL_CSA_DEAUTH_TX_TIME_MC_IDX]);
+		if (ret == 1) {
+			wpa_printf(MSG_INFO, "csa deauth: tx_time input format is not correct");
+			return 0;
+		}
+		if (ret == 0) {
+			wpa_printf(MSG_INFO, "csa deauth: tx_time not configured, will be using defaults");
+			return 0;
+		}
+		if (hapd->csa_deauth_tx_time[INTEL_CSA_DEAUTH_TX_TIME_UC_IDX] < hapd->iconf->beacon_int ||
+			hapd->csa_deauth_tx_time[INTEL_CSA_DEAUTH_TX_TIME_MC_IDX] < hapd->iconf->beacon_int) {
+			/* TODO how to identify max value */
+			wpa_printf(MSG_ERROR, "csa deauth: tx time value can't be less than beacon interval");
+			return -1;
+		}
+	}
+	return 0;
 }
 
 
@@ -7943,6 +7932,29 @@ static int hostapd_ctrl_iface_get_capability(struct hostapd_data *hapd,
 
 	return -1;
 }
+
+static int hostapd_ctrl_iface_get_csa_deauth (struct hostapd_data *hapd, const char *cmd,
+	char *buf, size_t buflen)
+{
+	int ret, len = 0;
+
+	hapd = get_bss_index(cmd, hapd->iface);
+	if (hapd == NULL) {
+		ret = os_snprintf(buf, buflen, "CTRL: GET_CSA_DEAUTH - there is no iface with the given name\n");
+		if (os_snprintf_error(buflen, ret))
+			return 0;
+		return ret;
+	}
+
+	ret = os_snprintf(buf + len, buflen - len, "mode=%d unicast_tx_time=%d multicast_tx_time=%d\n",
+		hapd->csa_deauth_mode, hapd->csa_deauth_tx_time[0], hapd->csa_deauth_tx_time[1]);
+	if (os_snprintf_error(buflen - len, ret))
+		return len;
+	len += ret;
+
+	return len;
+}
+
 static int hostapd_ctrl_iface_receive_process(struct hostapd_data *hapd,
 					      char *buf, char *reply,
 					      int reply_size,
@@ -8054,8 +8066,8 @@ static int hostapd_ctrl_iface_receive_process(struct hostapd_data *hapd,
 	} else if (os_strncmp(buf, "WPS_CHECK_PIN ", 14) == 0) {
 		reply_len = hostapd_ctrl_iface_wps_check_pin(
 			hapd, buf + 14, reply, reply_size);
-	} else if (os_strncmp(buf, "WPS_PBC ", 8) == 0) {
-		if (hostapd_wps_vap_button_pushed(hapd, buf + 8))
+	} else if (os_strcmp(buf, "WPS_PBC") == 0) {
+		if (hostapd_wps_button_pushed(hapd, NULL))
 			reply_len = -1;
 	} else if (os_strcmp(buf, "WPS_CANCEL") == 0) {
 		if (hostapd_wps_cancel(hapd))
@@ -8066,7 +8078,7 @@ static int hostapd_ctrl_iface_receive_process(struct hostapd_data *hapd,
 	} else if (os_strncmp(buf, "WPS_CONFIG ", 11) == 0) {
 		if (hostapd_ctrl_iface_wps_config(hapd, buf + 11) < 0)
 			reply_len = -1;
-	} else if (os_strncmp(buf, "WPS_GET_STATUS", 14) == 0) {
+	} else if (os_strncmp(buf, "WPS_GET_STATUS", 13) == 0) {
 		reply_len = hostapd_ctrl_iface_wps_get_status(hapd, reply,
 							      reply_size);
 #ifdef CONFIG_WPS_NFC
@@ -8120,9 +8132,9 @@ static int hostapd_ctrl_iface_receive_process(struct hostapd_data *hapd,
 		if (hostapd_ctrl_iface_coloc_intf_req(hapd, buf + 15))
 			reply_len = -1;
 #endif /* CONFIG_WNM_AP */
-	} else if (os_strncmp(buf, "GET_CONFIG ", 11) == 0) {
-		reply_len = hostapd_ctrl_iface_get_config(hapd, buf + 11, reply,
-				reply_size);
+	} else if (os_strcmp(buf, "GET_CONFIG") == 0) {
+		reply_len = hostapd_ctrl_iface_get_config(hapd, reply,
+							  reply_size);
 	} else if (os_strncmp(buf, "SET ", 4) == 0) {
 		if (hostapd_ctrl_iface_set(hapd, buf + 4))
 			reply_len = -1;
@@ -8241,15 +8253,15 @@ static int hostapd_ctrl_iface_receive_process(struct hostapd_data *hapd,
 	} else if (os_strncmp(buf, "GET_BLACKLIST", 13) == 0) {
 		reply_len = hostapd_ctrl_iface_get_blacklist(hapd->iface, reply, reply_size);
 	} else if (os_strncmp(buf, "GET_STA_MEASUREMENTS ", 21) == 0) {
-		printf("%s; *** Received from FAPI: 'GET_STA_MEASUREMENTS' (buf= '%s') ***\n", __FUNCTION__, buf);
+		wpa_printf(MSG_DEBUG, "%s; *** Received from FAPI: 'GET_STA_MEASUREMENTS' (buf= '%s') ***\n", __FUNCTION__, buf);
 		reply_len = hostapd_ctrl_iface_get_sta_measurements(hapd, buf + 21, reply,
 					reply_size);
 	} else if (os_strncmp(buf, "GET_VAP_MEASUREMENTS ", 21) == 0) {
-		printf("%s; *** Received from FAPI: 'GET_VAP_MEASUREMENTS' (buf= '%s') ***\n", __FUNCTION__, buf);
+		wpa_printf(MSG_DEBUG, "%s; *** Received from FAPI: 'GET_VAP_MEASUREMENTS' (buf= '%s') ***\n", __FUNCTION__, buf);
 		reply_len = hostapd_ctrl_iface_get_vap_measurements(hapd, buf + 21, reply,
 					reply_size);
 	} else if (os_strncmp(buf, "GET_RADIO_INFO", 14) == 0) {
-		printf("%s; *** Received from FAPI: 'GET_RADIO_INFO' (buf= '%s') ***\n", __FUNCTION__, buf);
+		wpa_printf(MSG_DEBUG, "%s; *** Received from FAPI: 'GET_RADIO_INFO' (buf= '%s') ***\n", __FUNCTION__, buf);
 		reply_len = hostapd_ctrl_iface_get_radio_info(hapd, NULL, reply,
 					reply_size);
 	} else if (os_strncmp(buf, "UPDATE_ATF_CFG", 14) == 0) {
@@ -8562,6 +8574,12 @@ static int hostapd_ctrl_iface_receive_process(struct hostapd_data *hapd,
 	} else if (os_strncmp(buf, "ZWDFS_ANT_SWITCH ", 17) == 0) {
 		if (hostapd_ctrl_iface_set_zwdfs_antenna(hapd, buf + 17) < 0)
 			reply_len = -1;
+	} else if (os_strncmp(buf, "SET_CSA_DEAUTH ", sizeof("SET_CSA_DEAUTH ") - 1) == 0) {
+		if (hostapd_ctrl_iface_set_csa_deauth(hapd, buf + sizeof("SET_CSA_DEAUTH ") - 1))
+			reply_len = -1;
+	} else if (os_strncmp(buf, "GET_CSA_DEAUTH ", sizeof("GET_CSA_DEAUTH ") - 1) == 0) {
+		reply_len = hostapd_ctrl_iface_get_csa_deauth(hapd, buf + sizeof("GET_CSA_DEAUTH ") - 1,
+			reply, reply_size);
 	} else {
 		os_memcpy(reply, "UNKNOWN COMMAND\n", 16);
 		reply_len = 16;

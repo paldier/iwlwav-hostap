@@ -419,6 +419,8 @@ struct hostapd_data {
 	unsigned int dpp_ignore_netaccesskey_mismatch:1;
 #endif /* CONFIG_TESTING_OPTIONS */
 #endif /* CONFIG_DPP */
+	u8 csa_deauth_mode;
+	u16 csa_deauth_tx_time[INTEL_CSA_DEAUTH_TX_TIME_ARR_SIZE];
 };
 
 
@@ -675,6 +677,7 @@ const char * hostapd_state_text(enum hostapd_iface_state s);
 const char * hostapd_channel_switch_text(enum hostapd_channel_switch_reason s);
 int hostapd_csa_in_progress(struct hostapd_iface *iface);
 void hostapd_chan_switch_vht_config(struct hostapd_data *hapd, int vht_enabled);
+int hostapd_prepare_and_send_csa_deauth_cfg_to_driver(struct hostapd_data *hapd);
 int hostapd_switch_channel(struct hostapd_data *hapd,
 			   struct csa_settings *settings);
 void

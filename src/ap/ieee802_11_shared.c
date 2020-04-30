@@ -554,7 +554,7 @@ u8 * hostapd_eid_multiple_bssid(struct hostapd_data *hapd, u8 *eid)
 	*eid++ = round_pow2_up(hapd->iface->num_bss);
 
 	/* Iterate over each BSS */
-	for (i = 1; i < hapd->iface->num_bss; i++) {
+	for (i = MULTIBSS_REFERENCE_BSS_IDX + 1; i < hapd->iface->num_bss; i++) {
 		struct hostapd_data *bss = hapd->iface->bss[i];
 		*eid++ = WLAN_EID_SUBELEMENT_NONTRANSMITTED_BSSID_PROFILE;
 		subelem_size_pos = eid;
@@ -565,7 +565,7 @@ u8 * hostapd_eid_multiple_bssid(struct hostapd_data *hapd, u8 *eid)
 		/* SSID element */
 		eid = hostapd_eid_ssid(bss, eid);
 		/* Multiple BSSID-Index */
-		eid = hostapd_eid_multiple_bssid_idx(bss, eid, i);
+		eid = hostapd_eid_multiple_bssid_idx(bss, eid, i-1);
 		*subelem_size_pos = (eid - subelem_data_pos);
 	}
 

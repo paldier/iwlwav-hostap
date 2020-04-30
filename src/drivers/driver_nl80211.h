@@ -167,7 +167,6 @@ struct wpa_driver_nl80211_data {
 	unsigned int scan_vendor_cmd_avail:1;
 	unsigned int connect_reassoc:1;
 	unsigned int set_wifi_conf_vendor_cmd_avail:1;
-	unsigned int he_capab_vendor_cmd_avail:1;
 	unsigned int fetch_bss_trans_status:1;
 	unsigned int roam_vendor_cmd_avail:1;
 	unsigned int get_supported_akm_suites_avail:1;

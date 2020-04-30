@@ -193,6 +193,7 @@ struct wpa_group {
 #ifdef CONFIG_IEEE80211W
 	u8 IGTK[2][WPA_IGTK_MAX_LEN];
 	int GN_igtk, GM_igtk;
+	u8 ipn[6];
 #endif /* CONFIG_IEEE80211W */
 	/* Number of references except those in struct wpa_group->next */
 	unsigned int references;
@@ -299,5 +300,12 @@ void wpa_ft_install_ptk(struct wpa_state_machine *sm);
 int wpa_ft_store_pmk_fils(struct wpa_state_machine *sm, const u8 *pmk_r0,
 			  const u8 *pmk_r0_name);
 #endif /* CONFIG_IEEE80211R_AP */
+
+#ifdef CONFIG_IEEE80211W
+u8 * bip_protect(struct wpa_authenticator *wpa_auth,
+		u8 *frame, size_t len, size_t *prot_len);
+u8 * bip_gmac_protect(struct wpa_authenticator *wpa_auth,
+		u8 *frame, size_t len, size_t *prot_len);
+#endif /* CONFIG_IEEE80211W */
 
 #endif /* WPA_AUTH_I_H */

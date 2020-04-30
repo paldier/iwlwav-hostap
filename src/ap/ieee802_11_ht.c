@@ -367,7 +367,7 @@ void hostapd_2040_coex_action(struct hostapd_data *hapd,
 		return;
 	}
 
-	if (len != IEEE80211_HDRLEN + 2 + sizeof(*bc_ie)) {
+	if (len < IEEE80211_HDRLEN + 2 + sizeof(*bc_ie)) {
 		wpa_printf(MSG_DEBUG,
 			   "Ignore too short 20/40 BSS Coexistence Management frame");
 		return;

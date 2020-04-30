@@ -13,6 +13,7 @@
 #include "utils/list.h"
 #include "ip_addr.h"
 #include "common/wpa_common.h"
+#include "common/ltq-vendor.h"
 #include "common/ieee802_11_defs.h"
 #include "common/ieee802_11_common.h"
 #include "wps/wps.h"
@@ -788,7 +789,8 @@ typedef struct acs_chan {
 #define ACS_MAX_CHANNELS           197
 #define ACS_MAX_FACTOR             100
 #define ACS_BW_THRESH_NUM            3
-#define COC_POWER_SIZE 3
+#define COC_AUTO_CONFIG 14
+#define ERP_SET_SIZE 10
 #define RT_MODE_SIZE 2
 #define FIXED_RATE_CONFIG_SIZE 11
 #define INTERFER_DEF_THRESH_SIZE 6
@@ -911,7 +913,6 @@ struct hostapd_config {
 	/* Use driver-generated interface addresses when adding multiple BSSs */
 	u8 use_driver_iface_addr;
 #ifdef CONFIG_IEEE80211AX
-	u8 minimized_he_assoc_response;
 	u8 he_spatial_reuse_ie_present_in_beacon;
 	u8 he_spatial_reuse_ie_present_in_assoc_response;
 	u8 he_spatial_reuse_ie_present_in_probe_response;
@@ -921,10 +922,15 @@ struct hostapd_config {
 	struct ieee80211_he_operation he_oper;
 	struct ieee80211_he_mu_edca_parameter_set he_mu_edca;
 	struct ieee80211_he_spatial_reuse_parameter_set he_spatial_reuse;
-	struct ieee80211_he_capabilities he_non_advertised_caps;
 	/* Override non-advertised HE caps */
 	u8 he_cap_non_adv_multi_bss_rx_control_support;
 	u8 he_cap_non_adv_multi_bss_rx_control_support_override;
+
+	/* Override driver reported HE Capabilities
+	 * by ones defined in hostapd configuration file.
+	 */
+	u8 enable_he_debug_mode;
+	struct he_override_hw_capab override_hw_capab;
 #endif /* CONFIG_IEEE80211AX */
 
 #ifdef CONFIG_FST
@@ -974,6 +980,7 @@ struct hostapd_config {
 	int acs_bw_comparison;
 	int *acs_bw_threshold;
 	int acs_use24overlapped;
+	int acs_bg_scan_do_switch;
 
 	struct acs_bias {
 		int channel;
@@ -984,6 +991,9 @@ struct hostapd_config {
 	int sPowerSelection; /* tx power: 12%:9 25%:6 50%:3 100%:0 */
 
 	int *sCoCPower;
+	int sCoCPowerSize;
+	int *sCoCAutoCfg;
+	int *sErpSet;
 	int sRadarRssiTh;
 	int *sRTSmode;
 	int *sFixedRateCfg;
@@ -991,7 +1001,6 @@ struct hostapd_config {
 	int *sCcaAdapt;
 	int *sFWRecovery;
 	int sFWRecoverySize;
-	int sDisableMasterVap;
 	int sStationsStat;
 
 	struct wpabuf *lci;
@@ -1002,6 +1011,9 @@ struct hostapd_config {
 	int sDynamicMuTypeDownLink;
 	int sDynamicMuTypeUpLink;
 	int sFixedLtfGi;
+#define AP_TX_RETRY_LIMIT_MAX  15
+#define AP_TX_RETRY_LIMIT_DEFAULT  4
+	uint32_t ap_retry_limit;
 
 	/* VHT enable/disable config from CHAN_SWITCH */
 #define CH_SWITCH_VHT_ENABLED BIT(0)

@@ -437,21 +437,19 @@ static int hostapd_cli_cmd_wps_pin(struct wpa_ctrl *ctrl, int argc,
 				   char *argv[])
 {
 	char buf[256];
-	if (argc < 3) {
-		printf("Invalid 'wps_pin' command - at least three arguments, "
-		       "BSS name, UUID and PIN, are required.\n");
+	if (argc < 2) {
+		printf("Invalid 'wps_pin' command - at least two arguments, "
+		       "UUID and PIN, are required.\n");
 		return -1;
 	}
-	if (argc > 4)
-		snprintf(buf, sizeof(buf), "WPS_PIN %s %s %s %s %s",
-			 argv[0], argv[1], argv[2], argv[3], argv[4]);
-	else if (argc > 3)
+	if (argc > 3)
 		snprintf(buf, sizeof(buf), "WPS_PIN %s %s %s %s",
 			 argv[0], argv[1], argv[2], argv[3]);
-	else
+	else if (argc > 2)
 		snprintf(buf, sizeof(buf), "WPS_PIN %s %s %s",
 			 argv[0], argv[1], argv[2]);
-
+	else
+		snprintf(buf, sizeof(buf), "WPS_PIN %s %s", argv[0], argv[1]);
 	return wpa_ctrl_command(ctrl, buf);
 }
 
@@ -485,23 +483,7 @@ static int hostapd_cli_cmd_wps_check_pin(struct wpa_ctrl *ctrl, int argc,
 static int hostapd_cli_cmd_wps_pbc(struct wpa_ctrl *ctrl, int argc,
 				   char *argv[])
 {
-	char cmd[256];
-	int res;
-
-	if (argc != 1) {
-		printf("Invalid WPS_PBC command: needs one argument:\n"
-		       "- BSS name for which VAP to push button\n");
-		return -1;
-	}
-
-	res = os_snprintf(cmd, sizeof(cmd), "WPS_PBC %s", argv[0]);
-
-	if (res < 0 || (size_t) res >= sizeof(cmd) - 1) {
-		printf("Too long WPS_PBC command.\n");
-		return -1;
-	}
-
-	return wpa_ctrl_command(ctrl, cmd);
+	return wpa_ctrl_command(ctrl, "WPS_PBC");
 }
 
 
@@ -609,22 +591,20 @@ static int hostapd_cli_cmd_nfc_get_handover_sel(struct wpa_ctrl *ctrl,
 static int hostapd_cli_cmd_wps_ap_pin(struct wpa_ctrl *ctrl, int argc,
 				      char *argv[])
 {
-	char buf[256];
-	if (argc < 2) {
-		printf("Invalid 'wps_ap_pin' command - at least two arguments "
-		       "are required.\n");
+	char buf[64];
+	if (argc < 1) {
+		printf("Invalid 'wps_ap_pin' command - at least one argument "
+		       "is required.\n");
 		return -1;
 	}
-	if (argc > 3)
-		snprintf(buf, sizeof(buf), "WPS_AP_PIN %s %s %s %s",
-			 argv[0], argv[1], argv[2], argv[3]);
-	else if (argc > 2)
+	if (argc > 2)
 		snprintf(buf, sizeof(buf), "WPS_AP_PIN %s %s %s",
 			 argv[0], argv[1], argv[2]);
-	else
+	else if (argc > 1)
 		snprintf(buf, sizeof(buf), "WPS_AP_PIN %s %s",
 			 argv[0], argv[1]);
-
+	else
+		snprintf(buf, sizeof(buf), "WPS_AP_PIN %s", argv[0]);
 	return wpa_ctrl_command(ctrl, buf);
 }
 
@@ -644,39 +624,38 @@ static int hostapd_cli_cmd_wps_config(struct wpa_ctrl *ctrl, int argc,
 	char key_hex[2 * 64 + 1];
 	int i;
 
-	if (argc < 3) {
-		printf("Invalid 'wps_config' command - at least three arguments "
+	if (argc < 1) {
+		printf("Invalid 'wps_config' command - at least two arguments "
 		       "are required.\n");
 		return -1;
 	}
 
 	ssid_hex[0] = '\0';
 	for (i = 0; i < SSID_MAX_LEN; i++) {
-		if (argv[1][i] == '\0')
+		if (argv[0][i] == '\0')
 			break;
-		os_snprintf(&ssid_hex[i * 2], 3, "%02x", argv[1][i]);
+		os_snprintf(&ssid_hex[i * 2], 3, "%02x", argv[0][i]);
 	}
 
 	key_hex[0] = '\0';
-	if (argc > 4) {
+	if (argc > 3) {
 		for (i = 0; i < 64; i++) {
-			if (argv[4][i] == '\0')
+			if (argv[3][i] == '\0')
 				break;
 			os_snprintf(&key_hex[i * 2], 3, "%02x",
-				    argv[4][i]);
+				    argv[3][i]);
 		}
 	}
 
-	if (argc > 4)
-		snprintf(buf, sizeof(buf), "WPS_CONFIG %s %s %s %s %s",
-			 argv[0], ssid_hex, argv[2], argv[3], key_hex);
-	else if (argc > 3)
+	if (argc > 3)
 		snprintf(buf, sizeof(buf), "WPS_CONFIG %s %s %s %s",
-			 argv[0], ssid_hex, argv[2], argv[3]);
-	else
+			 ssid_hex, argv[1], argv[2], key_hex);
+	else if (argc > 2)
 		snprintf(buf, sizeof(buf), "WPS_CONFIG %s %s %s",
-			 argv[0], ssid_hex, argv[2]);
-
+			 ssid_hex, argv[1], argv[2]);
+	else
+		snprintf(buf, sizeof(buf), "WPS_CONFIG %s %s",
+			 ssid_hex, argv[1]);
 	return wpa_ctrl_command(ctrl, buf);
 }
 #endif /* CONFIG_WPS */
@@ -752,23 +731,7 @@ static int hostapd_cli_cmd_bss_tm_req(struct wpa_ctrl *ctrl, int argc,
 static int hostapd_cli_cmd_get_config(struct wpa_ctrl *ctrl, int argc,
 				      char *argv[])
 {
-	char cmd[256];
-	int res;
-
-	if (argc != 1) {
-		printf("Invalid GET_CONFIG command: needs one argument:\n"
-		       "- BSS name for which VAP to get config\n");
-		return -1;
-	}
-
-	res = os_snprintf(cmd, sizeof(cmd), "GET_CONFIG %s", argv[0]);
-
-	if (res < 0 || (size_t) res >= sizeof(cmd) - 1) {
-		printf("Too long GET_CONFIG command.\n");
-		return -1;
-	}
-
-	return wpa_ctrl_command(ctrl, cmd);
+	return wpa_ctrl_command(ctrl, "GET_CONFIG");
 }
 
 
@@ -2573,11 +2536,11 @@ static const struct hostapd_cli_cmd hostapd_cli_commands[] = {
 #endif /* CONFIG_IEEE80211W */
 #ifdef CONFIG_WPS
 	{ "wps_pin", hostapd_cli_cmd_wps_pin, NULL,
-	  "<BSS_name> <uuid> <pin> [timeout] [addr] = add WPS Enrollee PIN" },
+	  "<uuid> <pin> [timeout] [addr] = add WPS Enrollee PIN" },
 	{ "wps_check_pin", hostapd_cli_cmd_wps_check_pin, NULL,
 	  "<PIN> = verify PIN checksum" },
 	{ "wps_pbc", hostapd_cli_cmd_wps_pbc, NULL,
-	  "<BSS_name> = indicate button pushed to initiate PBC" },
+	  "= indicate button pushed to initiate PBC" },
 	{ "wps_cancel", hostapd_cli_cmd_wps_cancel, NULL,
 	  "= cancel the pending WPS operation" },
 #ifdef CONFIG_WPS_NFC
@@ -2591,9 +2554,9 @@ static const struct hostapd_cli_cmd hostapd_cli_commands[] = {
 	  NULL },
 #endif /* CONFIG_WPS_NFC */
 	{ "wps_ap_pin", hostapd_cli_cmd_wps_ap_pin, NULL,
-	  "<BSS_name> <cmd> [params..] = enable/disable AP PIN" },
+	  "<cmd> [params..] = enable/disable AP PIN" },
 	{ "wps_config", hostapd_cli_cmd_wps_config, NULL,
-	  "<BSS_name> <SSID> <auth> <encr> <key> = configure AP" },
+	  "<SSID> <auth> <encr> <key> = configure AP" },
 	{ "wps_get_status", hostapd_cli_cmd_wps_get_status, NULL,
 	  "= show current WPS status" },
 #endif /* CONFIG_WPS */
@@ -2604,7 +2567,7 @@ static const struct hostapd_cli_cmd hostapd_cli_commands[] = {
 	{ "bss_tm_req", hostapd_cli_cmd_bss_tm_req, NULL,
 	  "= send BSS Transition Management Request" },
 	{ "get_config", hostapd_cli_cmd_get_config, NULL,
-	  "<BSS_name> = show current configuration" },
+	  "= show current configuration" },
 	{ "help", hostapd_cli_cmd_help, hostapd_cli_complete_help,
 	  "= show this usage help" },
 	{ "interface", hostapd_cli_cmd_interface, hostapd_complete_interface,

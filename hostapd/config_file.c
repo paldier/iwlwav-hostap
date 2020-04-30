@@ -14,6 +14,7 @@
 #include "utils/common.h"
 #include "utils/uuid.h"
 #include "common/ieee802_11_defs.h"
+#include "common/ltq-vendor.h"
 #include "crypto/sha256.h"
 #include "crypto/tls.h"
 #include "drivers/driver.h"
@@ -3394,6 +3395,15 @@ int hostapd_config_fill(struct hostapd_config *conf,
     int val = atoi(pos);
     conf->acs_use24overlapped = val;
   }
+  else if (os_strcmp(buf, "acs_bg_scan_do_switch") == 0) {
+    int val = atoi(pos);
+    if ((val != 0) && (val != 1)) {
+      wpa_printf(MSG_ERROR, "Line %d: Wrong value of acs_bg_scan_do_switch %d, must be 0 or 1",
+                 line, val);
+      return 1;
+    }
+    conf->acs_bg_scan_do_switch = val;
+  }
   else if (os_strcmp(buf, "acs_fallback_chan") == 0) {
     if (3 != sscanf(pos, "%d %d %d", &conf->acs_fallback_chan.primary,
                                      &conf->acs_fallback_chan.secondary,
@@ -3987,103 +3997,8 @@ int hostapd_config_fill(struct hostapd_config *conf,
 		conf->he_spatial_reuse_ie_present_in_probe_response = atoi(pos);
 	} else if (os_strcmp(buf, "he_mu_edca_ie_present") == 0) {
 		conf->he_mu_edca_ie_present = atoi(pos);
-	} else if (os_strcmp(buf, "minimized_he_assoc_response") == 0) {
-		conf->minimized_he_assoc_response = atoi(pos);
-	} else if (os_strcmp(buf, "he_capab") == 0) {
-
 	} else if (os_strcmp(buf, "require_he") == 0) {
-					conf->require_he = atoi(pos);
-	} else if (os_strcmp(buf, "he_mac_fragmentation") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP0_IDX],
-				       atoi(pos), HE_MAC_CAP0_FRAGMENTATION_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_plus_htc_he_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP0_IDX],
-					   atoi(pos), HE_MAC_CAP0_HTC_HE_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_twt_requester_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP0_IDX],
-					   atoi(pos), HE_MAC_CAP0_TWT_REQUESTER_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_twt_responder_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP0_IDX],
-					   atoi(pos), HE_MAC_CAP0_TWT_RESPONDER_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_all_ack_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP2_IDX],
-					   atoi(pos), HE_MAC_CAP2_ALL_ACK_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_bsr_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP2_IDX],
-					   atoi(pos), HE_MAC_CAP2_BSR_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_broadcast_twt_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP2_IDX],
-					   atoi(pos), HE_MAC_CAP2_BROADCAST_TWT_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_32bit_ba_bitmap_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP2_IDX],
-					   atoi(pos), HE_MAC_CAP2_32BIT_BA_BITMAP_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_mu_cascading_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP2_IDX],
-					   atoi(pos), HE_MAC_CAP2_MU_CASCADING_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_ack_enabled_aggregation_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP2_IDX],
-					   atoi(pos), HE_MAC_CAP2_ACK_ENABLED_AGGREGATION_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_group_addressed_multi_sta_blockack_in_dl_mu_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP3_IDX],
-					   atoi(pos), HE_MAC_CAP3_GROUP_ADD_MULTI_STA_BA_IN_DL_MU_SUP);
-	} else if (os_strcmp(buf, "he_mac_om_control_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP3_IDX],
-					   atoi(pos), HE_MAC_CAP3_OM_CONTROL_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_ofdma_ra_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP3_IDX],
-					   atoi(pos), HE_MAC_CAP3_OFDMA_RA_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_a_msdu_fragmentation_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP3_IDX],
-					   atoi(pos), HE_MAC_CAP3_AMSDU_FRGMENTATION_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_flexible_twt_schedule_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP3_IDX],
-					   atoi(pos), HE_MAC_CAP3_FLEXIBLE_TWT_SCHEDULE_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_rx_control_frame_to_multibss") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP3_IDX],
-					   atoi(pos), HE_MAC_CAP3_RX_CONTROL_FRAME_TO_MULTIBSS);
-	} else if (os_strcmp(buf, "he_mac_bsrp_bqrp_a_mpdu_aggregation") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP4_IDX],
-					   atoi(pos), HE_MAC_CAP4_BSRP_BQRP_AMPDU_AGGREGATION);
-	} else if (os_strcmp(buf, "he_mac_qtp_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP4_IDX],
-					   atoi(pos), HE_MAC_CAP4_QTP_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_bqr_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP4_IDX],
-					   atoi(pos), HE_MAC_CAP4_BQR_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_a_msdu_in_ack_enabled_a_mpdu_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP4_IDX],
-					   atoi(pos), HE_MAC_CAP4_AMSDU_IN_AMPDU_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_maximum_number_of_fragmented_msdus_amsdus") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP0_IDX],
-					   atoi(pos), HE_MAC_CAP0_MAX_NUM_OF_FRAG_MSDU);
-	} else if (os_strcmp(buf, "he_mac_minimum_fragment_size") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP1_IDX],
-					   atoi(pos), HE_MAC_CAP1_MINIMUM_FRAGMENT_SIZE);
-	} else if (os_strcmp(buf, "he_mac_trigger_frame_mac_padding_duration") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP1_IDX],
-					   atoi(pos), HE_MAC_CAP1_TRIGGER_FRAME_MAC_PAD_DUR);
-	} else if (os_strcmp(buf, "he_mac_multi_tid_aggregation_rx_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP1_IDX],
-					   atoi(pos), HE_MAC_CAP1_MULTI_TID_AGGR_RX_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_he_link_adaptation") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP1_IDX],
-					   atoi(pos), HE_MAC_CAP1_HE_LINK_ADAPTION_SUPPORT);
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP2_IDX],
-					   (atoi(pos) >> 1), HE_MAC_CAP2_HE_LINK_ADAPTION_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_maximum_a_mpdu_length_exponent") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP3_IDX],
-					   atoi(pos), HE_MAC_CAP3_MAX_AMPDU_LEN_EXP_EXT);
-	} else if (os_strcmp(buf, "he_mac_multi_tid_aggregation_tx_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP4_IDX],
-					   atoi(pos), HE_MAC_CAP4_MULTI_TID_AGGR_TX_SUPPORT);
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP5_IDX],
-					   (atoi(pos) >> 1), HE_MAC_CAP5_MULTI_TID_AGGR_TX_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_ndp_feedback_report_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP4_IDX],
-					   atoi(pos), HE_MAC_CAP4_NDP_FEEDBACK_REPORT_SUPPORT);
-	} else if (os_strcmp(buf, "he_mac_om_control_ul_mu_data_disable_rx_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_mac_capab_info[HE_MACCAP_CAP5_IDX],
-					   atoi(pos), HE_MAC_CAP5_OM_CONTROL_UL_MU_DATA_DIS_RX_SUP);
+		conf->require_he = atoi(pos);
 	} else if (os_strcmp(buf, "he_phy_channel_width_set") == 0) {
 		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP0_IDX],
 					   atoi(pos), HE_PHY_CAP0_CHANNEL_WIDTH_SET);
@@ -4100,256 +4015,6 @@ int hostapd_config_fill(struct hostapd_config *conf,
 			conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP0_IDX] |=
 				HE_PHY_CAP0_CHANNEL_WIDTH_SET_B1;
 		}
-	} else if (os_strcmp(buf, "he_phy_preamble_puncturing_rx") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP1_IDX],
-					   atoi(pos), HE_PHY_CAP1_PUN_PREAM_RX);
-	} else if (os_strcmp(buf, "he_phy_device_class") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP1_IDX],
-					   atoi(pos), HE_PHY_CAP1_DEVICE_CLASS);
-	} else if (os_strcmp(buf, "he_phy_ldpc_coding_in_payload") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP1_IDX],
-					   atoi(pos), HE_PHY_CAP1_LDPC_CODING_IN_PAYLOAD);
-	} else if (os_strcmp(buf, "he_phy_su_beamformer_capable") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP3_IDX],
-					   atoi(pos), HE_PHY_CAP3_SU_BEAMFORMER);
-	} else if (os_strcmp(buf, "he_phy_su_beamformee_capable") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP4_IDX],
-					   atoi(pos), HE_PHY_CAP4_SU_BEAMFORMEE);
-	} else if (os_strcmp(buf, "he_phy_mu_beamformer_capable") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP4_IDX],
-					   atoi(pos), HE_PHY_CAP4_MU_BEAMFORMER);
-	} else if (os_strcmp(buf, "he_phy_ng_16_su_feedback") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP5_IDX],
-					   atoi(pos), HE_PHY_CAP5_NG_16_FOR_SU_FB_SUPPORT);
-	} else if (os_strcmp(buf, "he_phy_ng_16_mu_feedback") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP5_IDX],
-					   atoi(pos), HE_PHY_CAP5_NG_16_FOR_MU_FB_SUPPORT);
-	} else if (os_strcmp(buf, "he_phy_codebook_size42_for_su_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP6_IDX],
-					   atoi(pos), HE_PHY_CAP6_CODEBOOK_SIZE42_FOR_SU_SUPPORT);
-	} else if (os_strcmp(buf, "he_phy_codebook_size75_for_mu_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP6_IDX],
-					   atoi(pos), HE_PHY_CAP6_CODEBOOK_SIZE75_FOR_MU_SUPPORT);
-	} else if (os_strcmp(buf, "he_phy_ppe_thresholds_present") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP6_IDX],
-					   atoi(pos), HE_PHY_CAP6_PPE_THRESHOLD_PRESENT);
-	} else if (os_strcmp(buf, "he_phy_srp_based_sr_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP7_IDX],
-					   atoi(pos), HE_PHY_CAP7_SRP_BASED_SR_SUPPORT);
-	} else if (os_strcmp(buf, "he_phy_power_boost_factor_alpha_support") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP7_IDX],
-					   atoi(pos), HE_PHY_CAP7_POWER_BOOST_FACTOR_SUPPORT);
-	} else if (os_strcmp(buf, "he_phy_su_ppdu_and_he_mu_with_4x_he_ltf_and_08us_gi") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP7_IDX],
-					   atoi(pos), HE_PHY_CAP7_SU_PPDU_AND_HE_MU_WITH_4X_HE_LTF_0_8US_GI);
-	} else if (os_strcmp(buf, "he_phy_triggered_su_beamforming_feedback") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP6_IDX],
-					   atoi(pos), HE_PHY_CAP6_TRIGGERED_SU_BEAMFORMING_FEEDBACK);
-	} else if (os_strcmp(buf, "he_phy_triggered_mu_beamforming_partial_bw_feedback") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP6_IDX],
-					   atoi(pos), HE_PHY_CAP6_TRIGGERED_MU_BEAMFORMING_PARTIAL_BW_FEEDBACK);
-	} else if (os_strcmp(buf, "he_phy_triggered_cqi_feedback") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP6_IDX],
-					   atoi(pos), HE_PHY_CAP6_TRIGGERED_CQI_FEEDBACK);
-	} else if (os_strcmp(buf, "he_phy_partial_bandwidth_extended_range") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP6_IDX],
-					   atoi(pos), HE_PHY_CAP6_PARTIAL_BANDWIDTH_EXTENDED_RANGE);
-	} else if (os_strcmp(buf, "he_phy_su_ppdu_with_1x_he_ltf_and_08_us_gi") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP1_IDX],
-					   atoi(pos), HE_PHY_CAP1_SU_PPDU_1XHE_LTF_0_8US_GI);
-	} else if (os_strcmp(buf, "he_phy_ndp_with_4x_he_ltf_and_32_us_gi") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP2_IDX],
-					   atoi(pos), HE_PHY_CAP2_NDP_4X_HE_LTF_AND_3_2MS_GI);
-	} else if (os_strcmp(buf, "he_phy_stbc_tx_less_than_or_equal_80mhz") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP2_IDX],
-					   atoi(pos), HE_PHY_CAP2_STBC_TX_LESS_OR_EQUAL_80MHz);
-	} else if (os_strcmp(buf, "he_phy_stbc_rx_less_than_or_equal_80mhz") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP2_IDX],
-					   atoi(pos), HE_PHY_CAP2_STBC_RX_LESS_OR_EQUAL_80MHz);
-	} else if (os_strcmp(buf, "he_phy_doppler_rx") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP2_IDX],
-					   atoi(pos), HE_PHY_CAP2_DOPPLER_RX);
-	} else if (os_strcmp(buf, "he_phy_doppler_tx") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP2_IDX],
-					   atoi(pos), HE_PHY_CAP2_DOPPLER_TX);
-	} else if (os_strcmp(buf, "he_phy_full_bandwidth_ul_mu_mimo") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP2_IDX],
-					   atoi(pos), HE_PHY_CAP2_FULL_BANDWIDTH_UL_MU_MIMO);
-	} else if (os_strcmp(buf, "he_phy_partial_bandwidth_ul_mu_mimo") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP2_IDX],
-					   atoi(pos), HE_PHY_CAP2_PARTIAL_BANDWIDTH_UL_MU_MIMO);
-	} else if (os_strcmp(buf, "he_phy_dcm_max_constellation_tx") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP3_IDX],
-					   atoi(pos), HE_PHY_CAP3_DCM_MAX_CONSTELLATION_TX);
-	} else if (os_strcmp(buf, "he_phy_dcm_max_constellation_rx") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP3_IDX],
-					   atoi(pos), HE_PHY_CAP3_DCM_MAX_CONSTELLATION_RX);
-	} else if (os_strcmp(buf, "he_phy_dcm_max_nss_tx") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP3_IDX],
-					   atoi(pos), HE_PHY_CAP3_DCM_MAX_NSS_TX);
-	} else if (os_strcmp(buf, "he_phy_dcm_max_nss_rx") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP3_IDX],
-					   atoi(pos), HE_PHY_CAP3_DCM_MAX_NSS_RX);
-	} else if (os_strcmp(buf, "he_phy_beamformee_sts_for_less_than_or_equal_80mhz") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP4_IDX],
-					   atoi(pos), HE_PHY_CAP4_BF_STS_LESS_OR_EQ_80MHz);
-	} else if (os_strcmp(buf, "he_phy_beamformee_sts_for_greater_than_80mhz") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP4_IDX],
-					   atoi(pos), HE_PHY_CAP4_BF_STS_GREATER_THAN_80MHz);
-	} else if (os_strcmp(buf, "he_phy_number_of_sounding_dimensions_for_less_than_or_equal_80mhz") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP5_IDX],
-					   atoi(pos), HE_PHY_CAP5_NUM_SOUND_DIM_LESS_80MHz);
-	} else if (os_strcmp(buf, "he_phy_number_of_sounding_dimensions_for_greater_than_80mhz") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP5_IDX],
-					   atoi(pos), HE_PHY_CAP5_NUM_SOUND_DIM_GREAT_80MHz);
-	} else if (os_strcmp(buf, "he_phy_max_nc") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP7_IDX],
-					   atoi(pos), HE_PHY_CAP7_MAX_NC);
-	} else if (os_strcmp(buf, "he_phy_ng_16_su_feedback") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP5_IDX],
-					   atoi(pos), HE_PHY_CAP5_NG_16_FOR_SU_FB_SUPPORT);
-	} else if (os_strcmp(buf, "he_phy_ng_16_mu_feedback") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP5_IDX],
-					   atoi(pos), HE_PHY_CAP5_NG_16_FOR_MU_FB_SUPPORT);
-	} else if (os_strcmp(buf, "he_phy_nominal_packet_padding") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_phy_capab_info[HE_PHYCAP_CAP9_IDX],
-					   atoi(pos), HE_PHY_CAP9_NOMINAL_PACKET_PADDING);
-	} else if (os_strcmp(buf, "he_mcs_nss_rx_he_mcs_map_less_than_or_equal_80_mhz") == 0) {
-		conf->he_capab.he_txrx_mcs_support[0] = atoi(pos) & 0xff;
-		conf->he_capab.he_txrx_mcs_support[1] = (atoi(pos) >> 8) & 0xff;
-	} else if (os_strcmp(buf, "he_mcs_nss_tx_he_mcs_map_less_than_or_equal_80_mhz") == 0) {
-	conf->he_capab.he_txrx_mcs_support[2] = atoi(pos) & 0xff;
-	conf->he_capab.he_txrx_mcs_support[3] = (atoi(pos) >> 8) & 0xff;
-	} else if (os_strcmp(buf, "he_mcs_nss_rx_he_mcs_map_160_mhz") == 0) {
-	conf->he_capab.he_txrx_mcs_support[4] = atoi(pos) & 0xff;
-	conf->he_capab.he_txrx_mcs_support[5] = (atoi(pos) >> 8) & 0xff;
-	} else if (os_strcmp(buf, "he_mcs_nss_tx_he_mcs_map_160_mhz") == 0) {
-	conf->he_capab.he_txrx_mcs_support[6] = atoi(pos) & 0xff;
-	conf->he_capab.he_txrx_mcs_support[7] = (atoi(pos) >> 8) & 0xff;
-	} else if (os_strcmp(buf, "he_mcs_nss_rx_he_mcs_map_8080_mhz") == 0) {
-		conf->he_capab.he_txrx_mcs_support[8] = atoi(pos) & 0xff;
-		conf->he_capab.he_txrx_mcs_support[9] = (atoi(pos) >> 8) & 0xff;
-	} else if (os_strcmp(buf, "he_mcs_nss_tx_he_mcs_map_8080_mhz") == 0) {
-		conf->he_capab.he_txrx_mcs_support[10] = atoi(pos) & 0xff;
-		conf->he_capab.he_txrx_mcs_support[11] = (atoi(pos) >> 8) & 0xff;
-	} else if (os_strcmp(buf, "he_ppe_thresholds_nsts") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP0_IDX],
-					   atoi(pos), HE_PPE_CAP0_NSS_M1);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ru_index_bitmask") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP0_IDX],
-					   atoi(pos), HE_PPE_CAP0_RU_INDEX_BITMASK);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet16_for_nsts1_for_ru0") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP0_IDX],
-					   atoi(pos), HE_PPE_CAP0_PPET16_FOR_NSS1_FOR_RU0);
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP1_IDX],
-					   atoi(pos) >> 1, HE_PPE_CAP1_PPET16_FOR_NSS1_FOR_RU0);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet16_for_nsts1_for_ru1") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP1_IDX],
-					   atoi(pos), HE_PPE_CAP1_PPET16_FOR_NSS1_FOR_RU1);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet16_for_nsts1_for_ru2") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP2_IDX],
-					   atoi(pos), HE_PPE_CAP2_PPET16_FOR_NSS1_FOR_RU2);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet16_for_nsts1_for_ru3") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP3_IDX],
-					   atoi(pos), HE_PPE_CAP3_PPET16_FOR_NSS1_FOR_RU3);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet16_for_nsts2_for_ru0") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP3_IDX],
-					   atoi(pos), HE_PPE_CAP3_PPET16_FOR_NSS2_FOR_RU0);
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP4_IDX],
-					   atoi(pos) >> 1, HE_PPE_CAP4_PPET16_FOR_NSS2_FOR_RU0);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet16_for_nsts2_for_ru1") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP4_IDX],
-					   atoi(pos), HE_PPE_CAP4_PPET16_FOR_NSS2_FOR_RU1);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet16_for_nsts2_for_ru2") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP5_IDX],
-					   atoi(pos), HE_PPE_CAP5_PPET16_FOR_NSS2_FOR_RU2);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet16_for_nsts2_for_ru3") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP6_IDX],
-					   atoi(pos), HE_PPE_CAP6_PPET16_FOR_NSS2_FOR_RU3);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet16_for_nsts3_for_ru0") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP6_IDX],
-					   atoi(pos), HE_PPE_CAP6_PPET16_FOR_NSS3_FOR_RU0);
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP7_IDX],
-					   (atoi(pos) >> 1), HE_PPE_CAP7_PPET16_FOR_NSS3_FOR_RU0);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet16_for_nsts3_for_ru1") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP7_IDX],
-					   atoi(pos), HE_PPE_CAP7_PPET16_FOR_NSS3_FOR_RU1);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet16_for_nsts3_for_ru2") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP8_IDX],
-					   atoi(pos), HE_PPE_CAP8_PPET16_FOR_NSS3_FOR_RU2);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet16_for_nsts3_for_ru3") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP9_IDX],
-					   atoi(pos), HE_PPE_CAP9_PPET16_FOR_NSS3_FOR_RU3);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet16_for_nsts4_for_ru0") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP9_IDX],
-					   atoi(pos), HE_PPE_CAP9_PPET16_FOR_NSS4_FOR_RU0);
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP10_IDX],
-					   atoi(pos) >> 1, HE_PPE_CAP10_PPET16_FOR_NSS4_FOR_RU0);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet16_for_nsts4_for_ru1") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP10_IDX],
-					   atoi(pos), HE_PPE_CAP10_PPET16_FOR_NSS4_FOR_RU1);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet16_for_nsts4_for_ru2") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP11_IDX],
-					   atoi(pos), HE_PPE_CAP11_PPET16_FOR_NSS4_FOR_RU2);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet16_for_nsts4_for_ru3") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP12_IDX],
-					   atoi(pos), HE_PPE_CAP12_PPET16_FOR_NSS4_FOR_RU3);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet8_for_nsts1_for_ru0") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP1_IDX],
-					   atoi(pos), HE_PPE_CAP1_PPET8_FOR_NSS1_FOR_RU0);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet8_for_nsts1_for_ru1") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP2_IDX],
-					   atoi(pos), HE_PPE_CAP2_PPET8_FOR_NSS1_FOR_RU1);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet8_for_nsts1_for_ru2") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP2_IDX],
-					   atoi(pos),HE_PPE_CAP2_PPET8_FOR_NSS1_FOR_RU2 );
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP3_IDX],
-					   (atoi(pos) >> 2), HE_PPE_CAP3_PPET8_FOR_NSS1_FOR_RU2);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet8_for_nsts1_for_ru3") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP3_IDX],
-					   atoi(pos), HE_PPE_CAP3_PPET8_FOR_NSS1_FOR_RU3);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet8_for_nsts2_for_ru0") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP4_IDX],
-					   atoi(pos), HE_PPE_CAP4_PPET8_FOR_NSS2_FOR_RU0);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet8_for_nsts2_for_ru1") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP5_IDX],
-					   atoi(pos), HE_PPE_CAP5_PPET8_FOR_NSS2_FOR_RU1);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet8_for_nsts2_for_ru2") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP5_IDX],
-					   atoi(pos), HE_PPE_CAP5_PPET8_FOR_NSS2_FOR_RU2);
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP6_IDX],
-					   atoi(pos) >> 2, HE_PPE_CAP6_PPET8_FOR_NSS2_FOR_RU2);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet8_for_nsts2_for_ru3") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP6_IDX],
-					   atoi(pos), HE_PPE_CAP6_PPET8_FOR_NSS2_FOR_RU3);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet8_for_nsts3_for_ru0") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP7_IDX],
-					   atoi(pos), HE_PPE_CAP7_PPET8_FOR_NSS3_FOR_RU0);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet8_for_nsts3_for_ru1") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP8_IDX],
-					   atoi(pos), HE_PPE_CAP8_PPET8_FOR_NSS3_FOR_RU1);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet8_for_nsts3_for_ru2") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP8_IDX],
-					   atoi(pos), HE_PPE_CAP8_PPET8_FOR_NSS3_FOR_RU2);
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP9_IDX],
-					   atoi(pos) >> 2, HE_PPE_CAP9_PPET8_FOR_NSS3_FOR_RU2);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet8_for_nsts3_for_ru3") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP9_IDX],
-					   atoi(pos), HE_PPE_CAP9_PPET8_FOR_NSS3_FOR_RU3);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet8_for_nsts4_for_ru0") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP10_IDX],
-					   atoi(pos), HE_PPE_CAP10_PPET8_FOR_NSS4_FOR_RU0);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet8_for_nsts4_for_ru1") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP11_IDX],
-					   atoi(pos), HE_PPE_CAP11_PPET8_FOR_NSS4_FOR_RU1);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet8_for_nsts4_for_ru2") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP11_IDX],
-					   atoi(pos), HE_PPE_CAP11_PPET8_FOR_NSS4_FOR_RU2);
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP12_IDX],
-					   (atoi(pos) >> 2), HE_PPE_CAP12_PPET8_FOR_NSS4_FOR_RU2);
-	} else if (os_strcmp(buf, "he_ppe_thresholds_ppet8_for_nsts4_for_ru3") == 0) {
-		clr_set_he_cap(&conf->he_capab.he_ppe_thresholds[HE_PPE_CAP12_IDX],
-					   atoi(pos), HE_PPE_CAP12_PPET8_FOR_NSS4_FOR_RU3);
 	} else if (os_strcmp(buf, "he_operation_bss_color") == 0) {
 		/*conf->he_oper.bss_color_info = atoi(pos);*/
 	} else if (os_strcmp(buf, "he_operation_default_pe_duration") == 0) {
@@ -4545,13 +4210,24 @@ int hostapd_config_fill(struct hostapd_config *conf,
 	} else if (os_strcmp(buf, "srg_partial_bssid_bitmap_part8") == 0) {
 		conf->he_spatial_reuse.he_srg_partial_bssid_bitmap[7] = atoi(pos);
 	} else if (os_strcmp(buf, "he_nfr_buffer_threshold") == 0) {
-  				conf->he_nfr_buffer_threshold = atoi(pos);
+		conf->he_nfr_buffer_threshold = atoi(pos);
 	} else if (os_strcmp(buf, "multibss_enable") == 0) {
-					conf->multibss_enable = atoi(pos);
+		conf->multibss_enable = atoi(pos);
 	/* Section for override non-advertised HE caps */
 	} else if (os_strcmp(buf, "he_cap_non_adv_multi_bss_rx_control_support") == 0) {
-					conf->he_cap_non_adv_multi_bss_rx_control_support = atoi(pos);
-					conf->he_cap_non_adv_multi_bss_rx_control_support_override = 1;
+		conf->he_cap_non_adv_multi_bss_rx_control_support = atoi(pos);
+		conf->he_cap_non_adv_multi_bss_rx_control_support_override = 1;
+	/* HE debug */
+	} else if (os_strcmp(buf, "enable_he_debug_mode") == 0) {
+		conf->enable_he_debug_mode = atoi(pos);
+	} else if (hostapd_conf_get_he_mac_capab_info(conf->he_capab.he_mac_capab_info,
+						      buf, pos, &conf->override_hw_capab)) {
+	} else if (hostapd_conf_get_he_phy_capab_info(conf->he_capab.he_phy_capab_info,
+						      buf, pos, &conf->override_hw_capab)) {
+	} else if (hostapd_conf_get_he_txrx_mcs_support(conf->he_capab.he_txrx_mcs_support,
+						        buf, pos, &conf->override_hw_capab)) {
+	} else if (hostapd_conf_get_he_ppe_thresholds(conf->he_capab.he_ppe_thresholds,
+						      buf, pos, &conf->override_hw_capab)) {
 #endif /* CONFIG_IEEE80211AX */
 	} else if (os_strcmp(buf, "twt_responder_support") == 0) {
 					bss->twt_responder_support = atoi(pos);
@@ -5505,18 +5181,32 @@ int hostapd_config_fill(struct hostapd_config *conf,
 	} else if (os_strcmp(buf, "sUdmaVlanId") == 0) {
 			bss->sUdmaVlanId = atoi(pos);
 
+	} else if (os_strcmp(buf, "ap_retry_limit") == 0) {
+		uint32_t ap_retry_limit = atoi(pos);
+		if (ap_retry_limit > AP_TX_RETRY_LIMIT_MAX) {
+			wpa_printf(MSG_ERROR, "Invalid AP retry limit value %d",
+				ap_retry_limit);
+			return 1;
+		}
+		conf->ap_retry_limit = ap_retry_limit;
 	} else if (os_strcmp(buf, "sPowerSelection") == 0) {
 		conf->sPowerSelection = atoi(pos);
 
 	} else if (os_strcmp(buf, "sCoCPower") == 0) {
 		if(hostapd_parse_intlist(&conf->sCoCPower, pos))
 			return 1;
+		conf->sCoCPowerSize = hostapd_intlist_size(pos);
+
+	} else if (os_strcmp(buf, "sCoCAutoCfg") == 0) {
+		if(hostapd_parse_intlist(&conf->sCoCAutoCfg, pos))
+			return 1;
+
+	} else if (os_strcmp(buf, "sErpSet") == 0) {
+		if(hostapd_parse_intlist(&conf->sErpSet, pos))
+			return 1;
 
 	} else if (os_strcmp(buf, "sRadarRssiTh") == 0) {
 		conf->sRadarRssiTh = atoi(pos);
-
-	} else if (os_strcmp(buf, "sDisableMasterVap") == 0) {
-		conf->sDisableMasterVap = atoi(pos);
 
 	} else if (os_strcmp(buf, "sStationsStat") == 0) {
 		conf->sStationsStat = atoi(pos);

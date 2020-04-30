@@ -1333,6 +1333,12 @@ switch_chan:
 	if (iface->conf->cw_reduced)
 		dfs_restore_original_cw(iface);
 	iface->chan_switch_reason = HAPD_CHAN_SWITCH_RADAR_DETECTED;
+	err = hostapd_prepare_and_send_csa_deauth_cfg_to_driver(iface->bss[0]);
+	if (err) {
+		wpa_printf(MSG_ERROR, "hostapd_prepare_and_send_csa_deauth_cfg_to_driver failed: %s",
+					iface->bss[0]->conf->iface);
+		return err;
+	}
 	for (i = 0; i < iface->num_bss; i++) {
 		err = hostapd_switch_channel(iface->bss[i], &csa_settings);
 		if (err)
@@ -1780,6 +1786,12 @@ hostapd_sub_dfs_switch_chan (struct hostapd_iface *iface, u8 rbm, int chan,
 				      iface->current_mode->vht_capab);
 
 	iface->chan_switch_reason = HAPD_CHAN_SWITCH_RADAR_DETECTED;
+	err = hostapd_prepare_and_send_csa_deauth_cfg_to_driver(iface->bss[0]);
+	if (err) {
+		wpa_printf(MSG_ERROR, "hostapd_prepare_and_send_csa_deauth_cfg_to_driver failed: %s",
+					iface->bss[0]->conf->iface);
+		return err;
+	}
 	for (i = 0; i < iface->num_bss; i++) {
 		err = hostapd_switch_channel(iface->bss[i], &csa_settings);
 		if (err)

@@ -1080,6 +1080,16 @@ hostapd_das_coa(void *ctx, struct radius_das_attrs *attr)
 
 static void hostapd_post_up_vendor_vap_cmd(struct hostapd_data *hapd, struct hostapd_bss_config *conf)
 {
+	/* HE debug */
+	if (hapd->iconf->enable_he_debug_mode) {
+		struct ltq_he_debug_mode_data debug_data;
+		memset(&debug_data, 0, sizeof(struct ltq_he_debug_mode_data));
+		debug_data.enable_debug_mode = 1;
+		os_memcpy(&debug_data.he_debug_capab,
+			  &hapd->iface->current_mode->he_capab, HE_ADVERTISED_CAP_LEN);
+		hostapd_drv_send_ltq_he_debug_mode_data(hapd, &debug_data);
+	}
+
 	if(conf->sAggrConfigSize){
 		if(hostapd_drv_vendor_cmd(hapd, OUI_LTQ, LTQ_NL80211_VENDOR_SUBCMD_SET_AGGR_CONFIG,
 				(u8*)conf->sAggrConfig, conf->sAggrConfigSize, NULL))
@@ -1100,15 +1110,30 @@ static void hostapd_post_up_vendor_vap_cmd(struct hostapd_data *hapd, struct hos
 			wpa_printf(MSG_WARNING, "set sUdmaVlanId failed");
 	}
 
-	/* Get non-advertised HE Capabilities from driver */
-	if(hostapd_drv_get_he_non_advertised(hapd, (void*)&hapd->iface->conf->he_non_advertised_caps) < 0)
-		wpa_printf(MSG_ERROR, "Failed to get non-advertised HE capabilities from driver");
-
 	/* Override non-advertised if ones were set in config file */
 	if (hapd->iconf->he_cap_non_adv_multi_bss_rx_control_support_override) {
-		clr_set_he_cap(&hapd->iface->conf->he_non_advertised_caps.he_mac_capab_info[HE_MACCAP_CAP3_IDX],
-			hapd->iconf->he_cap_non_adv_multi_bss_rx_control_support, HE_MAC_CAP3_RX_CONTROL_FRAME_TO_MULTIBSS);
+		if (hostapd_drv_set_he_non_advertised(hapd, HE_MACCAP_CAP3_IDX,
+					hapd->iconf->he_cap_non_adv_multi_bss_rx_control_support,
+					HE_MAC_CAP3_RX_CONTROL_FRAME_TO_MULTIBSS) < 0) {
+			wpa_printf(MSG_ERROR, "Failed to set non-advertised HE capabilities in driver");
+		}
 	}
+}
+
+static void hostapd_set_debug_mode_he_cap(struct hostapd_data *hapd)
+{
+	struct ieee80211_he_capabilities *hw = &hapd->iface->current_mode->he_capab;
+	struct ieee80211_he_capabilities *conf = &hapd->iconf->he_capab;
+	struct he_override_hw_capab *override_cap_idx = &hapd->iconf->override_hw_capab;
+
+	hostapd_set_debug_he_mac_capab_info(hw->he_mac_capab_info,
+			conf->he_mac_capab_info, override_cap_idx);
+	hostapd_set_debug_he_phy_capab_info(hw->he_phy_capab_info,
+			conf->he_phy_capab_info, override_cap_idx);
+	hostapd_set_debug_he_txrx_mcs_support(hw->he_txrx_mcs_support,
+			conf->he_txrx_mcs_support, override_cap_idx);
+	hostapd_set_debug_he_ppe_thresholds(hw->he_ppe_thresholds,
+			conf->he_ppe_thresholds, override_cap_idx);
 }
 
 static void hostapd_pre_up_vendor_vap_cmd(struct hostapd_data *hapd)
@@ -1126,7 +1151,7 @@ static void hostapd_pre_up_vendor_vap_cmd(struct hostapd_data *hapd)
 		if (hostapd_drv_set_mbssid_vap_mode(hapd, multibss_vap_mode) < 0) {
 					 wpa_printf(MSG_ERROR, "Failed to set MBSSID VAP");
 		}
-		if (hostapd_drv_set_mbssid_num_vaps_in_group(hapd, hapd->iconf->num_bss) < 0) {
+		if (hostapd_drv_set_mbssid_num_vaps_in_group(hapd, hapd->iconf->num_bss - 1) < 0) {
 					 wpa_printf(MSG_ERROR, "Failed to set MBSSID number of VAPs in group");
 		}
 	} else {
@@ -1295,6 +1320,10 @@ int hostapd_setup_bss(struct hostapd_data *hapd, int first)
 		if (!addr)
 			os_memcpy(hapd->own_addr, if_addr, ETH_ALEN);
 	}
+
+	/* He Debug mode */
+	if (hapd->iconf->enable_he_debug_mode)
+		hostapd_set_debug_mode_he_cap(hapd);
 
 	hostapd_pre_up_vendor_vap_cmd(hapd);
 
@@ -2143,10 +2172,10 @@ static inline void hostapd_post_up_vendor_cmd(struct hostapd_iface *iface)
 {
 	struct hostapd_data *hapd = iface->bss[0];
 
-	if(iface->conf->sCoCPower){
-		if(hostapd_drv_vendor_cmd(hapd, OUI_LTQ, LTQ_NL80211_VENDOR_SUBCMD_SET_COC_POWER_MODE,
-				(u8*)iface->conf->sCoCPower, COC_POWER_SIZE * sizeof(int), NULL))
-			wpa_printf(MSG_WARNING, "set sCoCPower failed");
+	if(iface->conf->sErpSet){
+		if(hostapd_drv_vendor_cmd(hapd, OUI_LTQ, LTQ_NL80211_VENDOR_SUBCMD_SET_ERP,
+				(u8*)iface->conf->sErpSet, ERP_SET_SIZE * sizeof(int), NULL))
+			wpa_printf(MSG_WARNING, "set sErpSet failed");
 	}
 
 	if(iface->conf->sRadarRssiTh){
@@ -2193,6 +2222,10 @@ static inline void hostapd_post_up_vendor_cmd(struct hostapd_iface *iface)
 		 (u8*)&nfrpcfg[0], sizeof(nfrpcfg), NULL))
 		wpa_printf(MSG_WARNING, "set sNfrpCfg failed");
 
+	if (hostapd_drv_vendor_cmd(hapd, OUI_LTQ, LTQ_NL80211_VENDOR_SUBCMD_SET_AP_RETRY_LIMIT,
+			(u8*)&iface->conf->ap_retry_limit, sizeof(iface->conf->ap_retry_limit), NULL))
+		wpa_printf(MSG_WARNING, "set ap_retry_limit %d failed", iface->conf->ap_retry_limit);
+
 	hostapd_post_up_vendor_cmd_mu_type(hapd, iface->conf->sDynamicMuTypeDownLink, iface->conf->sDynamicMuTypeUpLink);
 	hostapd_post_up_vendor_cmd_guard_interval(hapd, iface->conf->sFixedLtfGi, iface->conf->ieee80211ax, iface->conf->ieee80211ac);
 
@@ -2211,6 +2244,87 @@ static void hostapd_interface_setup_failure_handler(void *eloop_ctx,
 		hapd->setup_complete_cb(hapd->setup_complete_cb_ctx);
 }
 
+
+static void hostapd_prepare_csa_deauth_frame(struct hostapd_data *hapd, u8 *mgmt_frame_buf, u8 *mgmt_frame_buf_len)
+{
+	size_t len = INTEL_NON_PROTECTED_DEAUTH_FRAME_LEN, plen = len;
+	struct ieee80211_mgmt mgmt;
+#ifdef BIP_PROTECTION_WORKING
+	u8 *mgmt_frame_buf_t = NULL;
+#endif
+
+	memset(&mgmt, 0, sizeof(struct ieee80211_mgmt));
+	mgmt.frame_control = IEEE80211_FC(WLAN_FC_TYPE_MGMT,
+                                          WLAN_FC_STYPE_DEAUTH);
+	os_memset(mgmt.da, 0xff, ETH_ALEN);
+	memcpy(mgmt.sa, hapd->own_addr, ETH_ALEN);
+	memcpy(mgmt.bssid, hapd->own_addr, ETH_ALEN);
+	mgmt.u.deauth.reason_code = host_to_le16(WLAN_REASON_UNSPECIFIED);
+
+#ifdef CONFIG_IEEE80211W
+	if (hapd->conf->ieee80211w != NO_MGMT_FRAME_PROTECTION) {
+#ifdef BIP_PROTECTION_WORKING
+		/* TODO invoke bip_protect or bip_protect_* on mgmt frame based on group_mgmt_cipher */
+		mgmt_frame_buf_t = bip_protect(hapd->wpa_auth, (u8 *)&mgmt, len, &plen);
+		memcpy(mgmt_frame_buf, mgmt_frame_buf_t, plen);
+#else
+		memcpy(mgmt_frame_buf, &mgmt, plen);
+#endif
+	}
+	else
+#endif
+	{
+		memcpy(mgmt_frame_buf, &mgmt, plen);
+	}
+	*mgmt_frame_buf_len = (u8)plen;
+}
+
+
+int hostapd_prepare_and_send_csa_deauth_cfg_to_driver(struct hostapd_data *hapd)
+{
+	struct hostapd_iface *iface = hapd->iface;
+	struct intel_vendor_channel_switch_cfg cs_vendor_cfg;
+	int i;
+
+	for (i = 0; i < iface->num_bss; i++) {
+		os_memset(&cs_vendor_cfg, 0, sizeof(cs_vendor_cfg));
+		switch (iface->bss[i]->csa_deauth_mode) {
+			case CSA_DEAUTH_MODE_DISABLED:
+				cs_vendor_cfg.csaDeauthMode = iface->bss[i]->csa_deauth_mode;
+				break;
+			case CSA_DEAUTH_MODE_BROADCAST:
+				hostapd_prepare_csa_deauth_frame(iface->bss[i], cs_vendor_cfg.csaDeauthFrames,
+					&cs_vendor_cfg.csaMcDeauthFrameLength); /* TODO replace i in second param with VAP idx equivalent */
+				/* fall thru */
+			case CSA_DEAUTH_MODE_UNICAST:
+				cs_vendor_cfg.csaDeauthMode = iface->bss[i]->csa_deauth_mode;
+				if (cs_vendor_cfg.csaDeauthTxTime[INTEL_CSA_DEAUTH_TX_TIME_UC_IDX] == 0 &&
+					iface->bss[i]->csa_deauth_tx_time[INTEL_CSA_DEAUTH_TX_TIME_UC_IDX] != 0) {
+					cs_vendor_cfg.csaDeauthTxTime[INTEL_CSA_DEAUTH_TX_TIME_UC_IDX] =
+						iface->bss[i]->csa_deauth_tx_time[INTEL_CSA_DEAUTH_TX_TIME_UC_IDX];
+				}
+				if (cs_vendor_cfg.csaDeauthTxTime[INTEL_CSA_DEAUTH_TX_TIME_MC_IDX] == 0 &&
+					iface->bss[i]->csa_deauth_tx_time[INTEL_CSA_DEAUTH_TX_TIME_MC_IDX] != 0) {
+					cs_vendor_cfg.csaDeauthTxTime[INTEL_CSA_DEAUTH_TX_TIME_MC_IDX] =
+						iface->bss[i]->csa_deauth_tx_time[INTEL_CSA_DEAUTH_TX_TIME_MC_IDX];
+				}
+				break;
+			default: /* unreachable code */
+				hostapd_logger(iface->bss[i], NULL, HOSTAPD_MODULE_IEEE80211,
+							HOSTAPD_LEVEL_INFO, "invalid csa deauth mode [%d]",
+							iface->bss[i]->csa_deauth_mode);
+				break;
+		}
+		if (hostapd_drv_vendor_cmd(iface->bss[i], OUI_LTQ, LTQ_NL80211_VENDOR_SUBCMD_CHANNEL_SWITCH_DEAUTH_CFG,
+							(const u8*)&cs_vendor_cfg, sizeof(cs_vendor_cfg), NULL)) {
+			wpa_printf(MSG_ERROR, "Failed to send driver vendor command LTQ_NL80211_VENDOR_SUBCMD_CHANNEL_SWITCH_DEAUTH_CFG for %s",
+						iface->bss[i]->conf->iface);
+			return -1;
+		}
+	}
+
+	return 0;
+}
 
 static int hostapd_setup_interface_complete_sync(struct hostapd_iface *iface,
 						 int err)
@@ -2233,15 +2347,22 @@ static int hostapd_setup_interface_complete_sync(struct hostapd_iface *iface,
 			(u8*)&srxThVal, sizeof(srxThVal), NULL))
 		wpa_printf(MSG_WARNING, "set srxThVal failed");
 
-	if(hostapd_drv_vendor_cmd(hapd, OUI_LTQ, LTQ_NL80211_VENDOR_SUBCMD_SET_DISABLE_MASTER_VAP,
-			(u8*)&iface->conf->sDisableMasterVap,
-			sizeof(iface->conf->sDisableMasterVap), NULL))
-		wpa_printf(MSG_WARNING, "set sDisableMasterVap failed");
-
 	if(hostapd_drv_vendor_cmd(hapd, OUI_LTQ, LTQ_NL80211_VENDOR_SUBCMD_SET_STATIONS_STATISTICS,
 			(u8*)&iface->conf->sStationsStat,
 			sizeof(iface->conf->sStationsStat), NULL))
 		wpa_printf(MSG_WARNING, "set sStationsStat failed");
+
+	if(iface->conf->sCoCPower){
+		if(hostapd_drv_vendor_cmd(hapd, OUI_LTQ, LTQ_NL80211_VENDOR_SUBCMD_SET_COC_POWER_MODE,
+				(u8*)iface->conf->sCoCPower, iface->conf->sCoCPowerSize * sizeof(int), NULL))
+			wpa_printf(MSG_WARNING, "set sCoCPower failed");
+	}
+
+	if(iface->conf->sCoCAutoCfg){
+		if(hostapd_drv_vendor_cmd(hapd, OUI_LTQ, LTQ_NL80211_VENDOR_SUBCMD_SET_COC_AUTO_PARAMS,
+				(u8*)iface->conf->sCoCAutoCfg, COC_AUTO_CONFIG * sizeof(int), NULL))
+			wpa_printf(MSG_WARNING, "set sCoCAutoCfg failed");
+	}
 
 	iface->sb_dfs_cntr = 0;
 
@@ -2346,6 +2467,12 @@ static int hostapd_setup_interface_complete_sync(struct hostapd_iface *iface,
 			}
 
 			settings.cs_count = 5;
+			res = hostapd_prepare_and_send_csa_deauth_cfg_to_driver(iface->bss[0]);
+			if (res) {
+				wpa_printf(MSG_ERROR, "hostapd_prepare_and_send_csa_deauth_cfg_to_driver failed: %s",
+							iface->bss[0]->conf->iface);
+				goto fail;
+			}
       for (j = 0; j < iface->num_bss; j++) {
         hapd = iface->bss[j];
 			res = hostapd_switch_channel(hapd, &settings);
@@ -2707,22 +2834,10 @@ static void hostapd_bss_deinit(struct hostapd_data *hapd)
 void hostapd_interface_deinit(struct hostapd_iface *iface)
 {
 	int j;
-	struct hostapd_data *hapd = iface->bss[0];
 
 	wpa_printf(MSG_DEBUG, "%s(%p)", __func__, iface);
 	if (iface == NULL)
 		return;
-	/*
-	 * Reset the Disable master VAP flag at the driver so during reinit of
-	 * hostapd the new scan results will be sent to hostap, if not reset
-	 * then driver will drop the BSS packets and scan results at hostapd show
-	 * zero BSSs
-	 * */
-	iface->conf->sDisableMasterVap = 0;
-	if(hostapd_drv_vendor_cmd(hapd, OUI_LTQ, LTQ_NL80211_VENDOR_SUBCMD_SET_DISABLE_MASTER_VAP,
-				(u8*)&iface->conf->sDisableMasterVap,
-				sizeof(iface->conf->sDisableMasterVap), NULL))
-		wpa_printf(MSG_WARNING, "set sDisableMasterVap failed");
 
 	hostapd_set_state(iface, HAPD_IFACE_DISABLED);
 

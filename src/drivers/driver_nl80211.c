@@ -6265,7 +6265,7 @@ static int i802_set_rts(void *priv, int rts)
 	int ret;
 	u32 val;
 
-	if (rts >= 2347 || rts == -1)
+	if (rts > 0xFFFF || rts == -1)
 		val = (u32) -1;
 	else
 		val = rts;
@@ -6771,46 +6771,20 @@ int nl80211_set_he_operation_info(void *priv, struct ieee80211_he_operation *he_
 	return ret;
 }
 
-int nl80211_get_he_non_advertised_info(void *priv, struct ieee80211_he_capabilities *non_advertised_he_caps)
+int nl80211_set_he_non_advertised_info(void *priv, u8 index, u8 value, u8 offset)
 {
-#define MIN_HE_NON_ADVERT_SIZE 15
-	int res = 0;
-	size_t min_size;
-	struct wpabuf *rsp_he_non_advert;
+	int ret;
+	u8 he_non_adv_cap_info[] = {index, value, offset};
 
-	if (NULL == non_advertised_he_caps) {
-	return -EFAULT;
-	}
+	ret = nl80211_vendor_cmd(priv, OUI_LTQ,
+				 LTQ_NL80211_VENDOR_SUBCMD_SET_HE_NON_ADVERTISED,
+				 he_non_adv_cap_info, sizeof(he_non_adv_cap_info), NULL);
+	if (ret < 0)
+		wpa_printf(MSG_ERROR,
+			   "nl80211: SET_HE_NON_ADVERTISED CMD failed: %i (%s)",
+			   ret, strerror(-ret));
 
-	rsp_he_non_advert = wpabuf_alloc(NLA_ALIGN(sizeof(struct nlattr) + sizeof(*non_advertised_he_caps)));
-
-	if (!rsp_he_non_advert) {
-	return -ENOBUFS;
-	}
-
-	res = nl80211_vendor_cmd(priv, OUI_LTQ, LTQ_NL80211_VENDOR_SUBCMD_GET_HE_NON_ADVERTISED,
-																	 NULL, 0, rsp_he_non_advert);
-	if (res) {
-	wpa_printf(MSG_ERROR, "nl80211: sending/receiving HE non-advertised capabilities failed: %i "
-		 "(%s)", res, strerror(-res));
-	goto out;
-	}
-
-	if (rsp_he_non_advert->used < MIN_HE_NON_ADVERT_SIZE) {
-	res = -EMSGSIZE;
-	wpa_printf(MSG_ERROR, "nl80211: driver returned %d bytes instead of at least %d",
-			   rsp_he_non_advert->used, MIN_HE_NON_ADVERT_SIZE);
-	goto out;
-	}
-
-	min_size = MIN(rsp_he_non_advert->used, sizeof(*non_advertised_he_caps));
-	memcpy(non_advertised_he_caps, rsp_he_non_advert->buf, min_size);
-	wpa_hexdump(MSG_DEBUG, "Received a new HE non-advertised capabilities",
-											  non_advertised_he_caps, min_size);
-
-out:
-	wpabuf_free(rsp_he_non_advert);
-	return res;
+	return ret;
 }
 
 int nl80211_get_sta_measurements(void *priv, const u8 *sta_addr,
@@ -6917,6 +6891,22 @@ int nl80211_get_radio_info(void *priv, struct intel_vendor_radio_info *radio_inf
 out:
   wpabuf_free(rsp);
   return ret;
+}
+
+int nl80211_send_ltq_he_debug_mode_data(void *priv,
+					struct ltq_he_debug_mode_data *data)
+{
+	int ret;
+
+	ret = nl80211_vendor_cmd(priv, OUI_LTQ,
+				 LTQ_NL80211_VENDOR_SUBCMD_SET_HE_DEBUG_DATA,
+				 (u8 *)data,
+				 sizeof(struct ltq_he_debug_mode_data), NULL);
+	if (ret < 0)
+		wpa_printf(MSG_ERROR,
+			   "nl80211: SET_HE_ADVERTISED CMD failed: %i (%s)",
+			   ret, strerror(-ret));
+	return ret;
 }
 
 int nl80211_send_atf_quotas(void *priv, struct intel_vendor_atf_quotas* atf_quotas)
@@ -11640,6 +11630,7 @@ const struct wpa_driver_ops wpa_driver_nl80211_ops = {
 	.set_management_frames_rate = nl80211_set_management_frames_rate,
 	.get_he_operation_info = nl80211_get_he_operation_info,
 	.set_he_operation_info = nl80211_set_he_operation_info,
-	.get_he_non_advertised_info = nl80211_get_he_non_advertised_info,
+	.set_he_non_advertised_info = nl80211_set_he_non_advertised_info,
+	.send_ltq_he_debug_mode_data = nl80211_send_ltq_he_debug_mode_data,
 	.set_zwdfs_antenna = nl80211_set_zwdfs_antenna,
 };

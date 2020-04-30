@@ -409,7 +409,7 @@ enum eap_proxy_sim_state {
 	SIM_STATE_ERROR,
 };
 #define MASTER_VAP_BSS_IDX 0
-#define MULTIBSS_REFERENCE_BSS_IDX 0
+#define MULTIBSS_REFERENCE_BSS_IDX 1
 enum multibss_vap_mode {
 	NON_MULTIBSS_VAP_MODE = 0,
 	MULTIBSS_TRANSMITTED_VAP_MODE = 1,

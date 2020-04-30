@@ -18,6 +18,22 @@
 #define COUNTRY_CODE_MAX_LEN 3
 
 #define NUMBER_OF_RX_ANTENNAS (4)
+#define INTEL_CSA_DEAUTH_TX_TIME_ARR_SIZE     2
+#define INTEL_CSA_DEAUTH_TX_TIME_UC_IDX       0
+#define INTEL_CSA_DEAUTH_TX_TIME_MC_IDX       1
+#define INTEL_MAX_PROTECTED_DEAUTH_FRAME_LEN  44
+#define INTEL_NON_PROTECTED_DEAUTH_FRAME_LEN  26
+#ifndef GEN6_MAX_VAP
+#define INTEL_MAX_VAP                         32
+#else
+#define INTEL_MAX_VAP                         GEN6_MAX_VAP
+#endif
+
+enum {
+  CSA_DEAUTH_MODE_DISABLED = 0,
+  CSA_DEAUTH_MODE_UNICAST,
+  CSA_DEAUTH_MODE_BROADCAST
+};
 
 struct intel_vendor_initial_data_cfg
 {
@@ -169,6 +185,14 @@ struct intel_vendor_mac_addr_list_cfg {
   u8 remove;
 } __attribute__ ((packed));
 
+/* Data for channel switch vendor implementation */
+struct intel_vendor_channel_switch_cfg {
+  u8 csaDeauthMode; /* 0-disabled, 1-unicast, 2-multicast */
+  u8 csaMcDeauthFrameLength; /* Length of deauth frame per VAP */
+  u16 csaDeauthTxTime[INTEL_CSA_DEAUTH_TX_TIME_ARR_SIZE]; /* Unicast and multicast deauth frame transmit time */
+  u8 csaDeauthFrames[INTEL_MAX_PROTECTED_DEAUTH_FRAME_LEN]; /* Deauth frames (optionally encrypted) per VAP */
+} __attribute__ ((packed));
+
 /*******************************************************************************
 *                           Event structures                                   *
 *******************************************************************************/
@@ -256,5 +280,5 @@ struct intel_vendor_event_msg_drop {
   u8 broadcast;                 /**< True if broadcast probe    */
   u8 reason;                    /**< Ignore for Probe Req       */
 } __attribute__ ((packed));
+#endif // __INTEL_VENDOR_SHARED_H__
 
-#endif /* __INTEL_VENDOR_SHARED_H__ */
