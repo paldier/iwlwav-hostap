@@ -4170,10 +4170,12 @@ static void handle_assoc(struct hostapd_data *hapd,
 		goto fail;
 
 	if ((hapd->conf->mesh_mode == MESH_MODE_BACKHAUL_AP && !sta->four_addr_mode_sta) ||
-	    (hapd->conf->mesh_mode == MESH_MODE_FRONTHAUL_AP && sta->four_addr_mode_sta))
+	    (hapd->conf->mesh_mode == MESH_MODE_FRONTHAUL_AP && sta->four_addr_mode_sta &&
+	     !(hapd->conf->mesh_mode_set && sta->multi_ap_supported && (sta->flags & WLAN_STA_WPS))))
 	{
-		/* Depending from the mesh_mode and STA mode (3- or 4-address),
-		 * the STA must be either accepted or rejected */
+		/* If the mesh_mode is bAP, only 4-addr stations will be accepted.
+		 * And if the mesh_mode is fAP, only 3-addr stations will be accepted,
+		 * with an exception to 4addr stations with multi_ap ies during WPS */
 		hostapd_event_connect_failed_reason(hapd, mgmt->sa, BLOCKED_CLIENT);
 		wpa_printf(MSG_INFO, "STA " MACSTR " not allowed to connect", MAC2STR(mgmt->sa));
 		resp = WLAN_STATUS_DENIED_INSUFFICIENT_BANDWIDTH;

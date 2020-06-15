@@ -1003,6 +1003,8 @@ u8 * hostapd_eid_multi_ap(struct hostapd_data *hapd, u8 *eid, size_t len)
 	switch (hapd->conf->mesh_mode) {
 	case MESH_MODE_FRONTHAUL_AP:
 		bss_type = MULTI_AP_SUBELEMENT_FAP;
+		if (hapd->conf->mesh_mode_set && hapd->conf->multi_ap_backhaul_ssid.ssid_len)
+			bss_type |= MULTI_AP_SUBELEMENT_BAP;
 		break;
 	case MESH_MODE_BACKHAUL_AP:
 		bss_type = MULTI_AP_SUBELEMENT_BAP;

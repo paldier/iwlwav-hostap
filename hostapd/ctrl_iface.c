@@ -7526,6 +7526,7 @@ static int hostapd_ctrl_iface_set_mesh_mode (struct hostapd_data *hapd, const ch
 		wpa_printf(MSG_ERROR, "CTRL: MESH_MODE - Failed to set mesh_mode");
 	} else {
 		hapd->conf->mesh_mode = mesh_mode;
+		hapd->conf->mesh_mode_set = 1;
 	}
 	return ret;
 }

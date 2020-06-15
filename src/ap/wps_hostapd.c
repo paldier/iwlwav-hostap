@@ -988,6 +988,7 @@ int hostapd_init_wps(struct hostapd_data *hapd,
 	struct wps_context *wps;
 	struct wps_registrar_config cfg;
 	u8 *multi_ap_netw_key = NULL;
+	int intel_mutliap_frontap = 0;
 
 	if (conf->wps_state == 0) {
 		hostapd_wps_clear_ies(hapd, 0);
@@ -1145,7 +1146,11 @@ int hostapd_init_wps(struct hostapd_data *hapd,
 		wps->encr_types_rsn = WPS_ENCR_AES | WPS_ENCR_TKIP;
 		wps->encr_types_wpa = WPS_ENCR_AES | WPS_ENCR_TKIP;
 	}
-	if ((hapd->conf->multi_ap & FRONTHAUL_BSS) &&
+
+	intel_mutliap_frontap = (hapd->conf->mesh_mode_set &&
+				 hapd->conf->mesh_mode == MESH_MODE_FRONTHAUL_AP);
+
+	if ((hapd->conf->multi_ap & FRONTHAUL_BSS || intel_mutliap_frontap) &&
 	    hapd->conf->multi_ap_backhaul_ssid.ssid_len) {
 		cfg.multi_ap_backhaul_ssid_len =
 			hapd->conf->multi_ap_backhaul_ssid.ssid_len;

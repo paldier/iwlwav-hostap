@@ -761,6 +761,7 @@ struct hostapd_bss_config {
 #endif
 
 	enum mesh_mode mesh_mode;
+	int mesh_mode_set;
 	u32 scan_timeout;
 
 	int *sAggrConfig; /*amsdu_mode ba_mode window_size*/

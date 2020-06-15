@@ -3841,6 +3841,7 @@ int hostapd_config_fill(struct hostapd_config *conf,
 			}
 		}
 		bss->mesh_mode = val;
+		bss->mesh_mode_set = 1;
 	}
 	else if (os_strcmp(buf, "owl") == 0) {
 		conf->owl = atoi(pos);
