@@ -891,6 +891,29 @@ void wpa_supplicant_reinit_autoscan(struct wpa_supplicant *wpa_s)
 	}
 }
 
+static void hostapd_delayed_reload_work(void *eloop_ctx, void *timeout_ctx)
+{
+	/* this delay between wpa_supplicant connection & hostapd reload is needed to:
+	 * 1) give a chance for dhcp client to get an IP address before starting AP vaps.
+	 * 2) on DFS channel, to avoid a race condition around changing the channel states
+	 *    to DFS_AVAILABLE & hostapd start, in order to prevent CAC.
+	 */
+	struct wpa_supplicant *wpa_s = eloop_ctx;
+	(void)timeout_ctx;
+
+	if (!wpa_s->hostapd ||
+	    !(wpa_s->hostapd_allowed_control & CH_MASTER_HOSTAPD_INIT_RECONNECT)) {
+		wpa_dbg(wpa_s, MSG_ERROR, "invalid operation mode");
+		return;
+	}
+
+	if (wpa_s->wpa_state != WPA_COMPLETED || !wpa_s->current_bss) {
+		wpa_dbg(wpa_s, MSG_ERROR, "incorrect wps state");
+		return;
+	}
+
+	hostapd_reload(wpa_s, wpa_s->current_bss);
+}
 
 /**
  * wpa_supplicant_set_state - Set current connection state
@@ -1004,7 +1027,8 @@ void wpa_supplicant_set_state(struct wpa_supplicant *wpa_s,
 
 		if (wpa_s->hostapd &&
 		    wpa_s->hostapd_allowed_control & CH_MASTER_HOSTAPD_INIT_RECONNECT)
-			hostapd_reload(wpa_s, wpa_s->current_bss);
+			eloop_register_timeout(1, 0, hostapd_delayed_reload_work,
+					       wpa_s, NULL);
 
 #if defined(CONFIG_FILS) && defined(IEEE8021X_EAPOL)
 		if (!fils_hlp_sent && ssid && ssid->eap.erp)
@@ -1013,8 +1037,11 @@ void wpa_supplicant_set_state(struct wpa_supplicant *wpa_s,
 	} else if (state == WPA_DISCONNECTED || state == WPA_ASSOCIATING ||
 		   state == WPA_ASSOCIATED) {
 		if (wpa_s->hostapd &&
-		    wpa_s->hostapd_allowed_control & CH_MASTER_HOSTAPD_INIT_RECONNECT)
-			hostapd_stop(wpa_s);
+		    wpa_s->hostapd_allowed_control & CH_MASTER_HOSTAPD_INIT_RECONNECT) {
+				eloop_cancel_timeout(hostapd_delayed_reload_work,
+					     wpa_s, NULL);
+				hostapd_stop(wpa_s);
+			}
 		wpa_s->new_connection = 1;
 		wpa_drv_set_operstate(wpa_s, 0);
 #ifndef IEEE8021X_EAPOL
@@ -2106,7 +2133,8 @@ void wpa_supplicant_associate(struct wpa_supplicant *wpa_s,
 		wpas_notify_mesh_group_started(wpa_s, ssid);
 		if (wpa_s->hostapd &&
 		    wpa_s->hostapd_allowed_control & CH_MASTER_HOSTAPD_INIT_RECONNECT)
-			hostapd_reload(wpa_s, wpa_s->current_bss);
+			eloop_register_timeout(1, 0, hostapd_delayed_reload_work,
+					       wpa_s, NULL);
 #else /* CONFIG_MESH */
 		wpa_msg(wpa_s, MSG_ERROR,
 			"mesh mode support not included in the build");
