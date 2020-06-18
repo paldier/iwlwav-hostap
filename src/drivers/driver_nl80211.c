@@ -4444,8 +4444,11 @@ static int nl80211_set_channel(struct i802_bss *bss,
 		   freq->freq, freq->ht_enabled, freq->vht_enabled,
 		   freq->bandwidth, freq->center_freq1, freq->center_freq2);
 
-	msg = nl80211_drv_msg(drv, 0, set_chan ? NL80211_CMD_SET_CHANNEL :
-			      NL80211_CMD_SET_WIPHY);
+	if (set_chan)
+		msg = nl80211_bss_msg(bss, 0, NL80211_CMD_SET_CHANNEL);
+	else
+		msg = nl80211_drv_msg(drv, 0, NL80211_CMD_SET_WIPHY);
+
 	if (!msg || nl80211_put_freq_params(msg, freq) < 0) {
 		nlmsg_free(msg);
 		return -1;

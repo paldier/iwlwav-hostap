@@ -2286,7 +2286,7 @@ int hostapd_prepare_and_send_csa_deauth_cfg_to_driver(struct hostapd_data *hapd)
 	struct intel_vendor_channel_switch_cfg cs_vendor_cfg;
 	int i;
 
-	for (i = 0; i < iface->num_bss; i++) {
+	for (i = 1; i < iface->num_bss; i++) {  /* skip master dummy vap (index 0) */
 		os_memset(&cs_vendor_cfg, 0, sizeof(cs_vendor_cfg));
 		switch (iface->bss[i]->csa_deauth_mode) {
 			case CSA_DEAUTH_MODE_DISABLED:
